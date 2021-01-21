@@ -14,11 +14,11 @@ for file in os.listdir(config_file_base_path):
     config_files.append(new_config)
 
 def execute_exp(config_file_path):
-    subprocess.call('python main.py --config-file={} --mode=production --device=cpu --base-config=../experiments_configs/base_config.json'.format(config_file_path))
+    subprocess.call('python main.py --config-file={} --mode=production --device=cpu --base-config=../experiments_configs/base_config.json'.format(config_file_path), shell=TRUE)
 
 process_list = []
 for i in range(len(config_files)):
-    p = Process(target=execute_exp, args=(config_files[i]))
+    p = Process(target=execute_exp, args=(config_files[i], ))
     p.start()
     process_list.append(p)
 
