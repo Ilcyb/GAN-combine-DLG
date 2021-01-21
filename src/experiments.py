@@ -3,6 +3,8 @@ import subprocess
 import os
 import time
 
+from utils import read_experiment_config
+
 config_files = []
 config_file_base_path = '../experiments_configs'
 
@@ -14,7 +16,8 @@ for file in os.listdir(config_file_base_path):
     config_files.append(new_config)
 
 def execute_exp(config_file_path):
-    subprocess.call('python main.py --config-file={} --mode=production --device=cpu --base-config=../experiments_configs/base_config.json'.format(config_file_path), shell=TRUE)
+    config = read_experiment_config(config_file_path)
+    subprocess.call('python -u main.py --config-file={} --mode=production --device=cpu --base-config=../experiments_configs/base_config.json | tee ../logs/{}.log'.format(config_file_path, config['name']), shell=True)
 
 process_list = []
 for i in range(len(config_files)):
@@ -29,8 +32,9 @@ for p in process_list:
     p.join()
 
 total_time = time.time() - start_time
-hours = total_time % 3600
-mins = (total_time - (hours*3600)) % 60
-secs = (total_time - (hours*3600) - (mins*60))
+print(total_time)
+hours = int(total_time / 3600)
+mins = int((total_time - (hours*3600)) / 60)
+secs = int((total_time - (hours*3600) - (mins*60)))
 
 print('所有进程执行完毕，共耗时{}小时{}分{}秒'.format(hours, mins, secs))
