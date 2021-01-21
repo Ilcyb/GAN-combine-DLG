@@ -1,0 +1,8 @@
+.DS_Store
+experiments_configs/
+.idea/
+datasets/
+Experiments/
+DebugExperiments/
+GenerateModels/
+__pycache__/

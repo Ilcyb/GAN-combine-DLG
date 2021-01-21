@@ -1,0 +1,11 @@
+{
+    "dataset": {
+        "cifar10_path": "../datasets/cifar",
+        "cifar100_path": "../datasets/cifar",
+        "mnist_path": "../datasets/mnist",
+        "svhn_path": "../datasets/svhn"
+    },
+    "production_path": "../Experiments",
+    "debug_path": "../DebugExperiments",
+    "generate_model_path": "../GenerateModels"
+}
