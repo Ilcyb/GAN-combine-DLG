@@ -234,6 +234,7 @@ def recover(save_dir, config, net, gt_data, dummy_datas, dummy_labels, mean_dy_d
             # 将初始化噪声加入history
             history[i][j].append(dummy_datas[i][j].cpu().clone())
 
+    start_time = time.time()
     for iter in range(iters):
         def closure():
             # compute mean dummy dy/dx
@@ -289,7 +290,8 @@ def recover(save_dir, config, net, gt_data, dummy_datas, dummy_labels, mean_dy_d
             for i in range(participants):
                 for j in range(batch_size):
                     history[i][j].append(dummy_datas[i][j].cpu().clone())
-            print("iter:{}\tloss:{:.5f}\tmean_psnr:{:.5f}".format(iter, current_loss.item(), mean_psnr))
+            print("iter:{}\tloss:{:.5f}\tmean_psnr:{:.5f}\tcost time:{:.2f} secs".format(iter, current_loss.item(), mean_psnr, time.time() - start_time))
+            start_time = time.time()
 
     for i in range(participants):
         for j in range(batch_size):
