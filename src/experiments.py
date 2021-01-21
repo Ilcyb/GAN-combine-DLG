@@ -11,7 +11,7 @@ config_file_base_path = '../experiments_configs'
 for file in os.listdir(config_file_base_path):
     new_config = os.path.join(config_file_base_path, file)
     filename, file_ext = os.path.splitext(new_config)
-    if file_ext != '.json':
+    if file_ext != '.json' or filename == 'base_config':
         continue
     config_files.append(new_config)
 
