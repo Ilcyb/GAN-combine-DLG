@@ -5,6 +5,7 @@ import time
 import argparse
 import sys
 import pathlib
+import logging
 
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import MultipleLocator
@@ -20,7 +21,12 @@ from models import *  # noqa: E402
 plt.rcParams.update({'figure.max_open_warning': 0})
 torch.manual_seed(50)
 
+LOG_FORMAT = "%(asctime)s - %(process)d - %(levelname)s - %(message)s"
+DATE_FORMAT = "%H:%M:%S %p"
+logging.basicConfig(filename='../logs/debug.log', level=logging.DEBUG, format=LOG_FORMAT, datefmt=DATE_FORMAT)
+
 def get_real_datas(net, save_dir, config):
+    logging.debug('进入get_real_datas函数')
     dataset = config['dataset']
     dst = None
     if dataset == 'cifar10':
@@ -87,6 +93,7 @@ def get_real_datas(net, save_dir, config):
             save_tensor_img(save_dir, 'truth_img{}-{}'.format(i + 1, j + 1), gt_data[i][j].cpu())
         save_tensor_img(save_dir, 'truth_img_grid', gt_data[i], True)
 
+    logging.debug('离开get_real_datas方法')
     return gt_data, gt_onehot_label, mean_dy_dx, data_shape, label_onehot_shape
 
 
@@ -163,6 +170,7 @@ def pure_gan_dummy(data_shape, participant, batch_size, config, generate_model):
 # generate dummy data and label
 def generate_dummy_datas(save_dir, config, data_shape, label_onehot_shape, 
                         generate_model, generate_models, gt_onehot_labels=None):
+    logging.debug('进入generate_dummy_datas方法')
     dummy_datas = []
     dummy_labels = []
     participants = config['participants']
@@ -201,11 +209,13 @@ def generate_dummy_datas(save_dir, config, data_shape, label_onehot_shape,
             save_tensor_img(save_dir, 'dummy_img{}-{}'.format(i + 1, j + 1), dummy_datas[i][j].cpu())
         save_tensor_img(save_dir, 'dummy_img_grid', dummy_datas[i], True)
 
+    logging.debug('离开generate_dummy_datas方法')
     return dummy_datas, dummy_labels
 
 
 # optimizer = torch.optim.LBFGS([dummy_data, dummy_label] )
 def recover(save_dir, config, net, gt_data, dummy_datas, dummy_labels, mean_dy_dx):
+    logging.debug('进入recover方法')
     dummies = []
     history = []
     loss = []
@@ -297,10 +307,12 @@ def recover(save_dir, config, net, gt_data, dummy_datas, dummy_labels, mean_dy_d
         for j in range(batch_size):
             history[i][j].append(dummy_datas[i][j].cpu().clone())
 
+    logging.debug('离开recover方法')
     return dummy_datas, dummy_labels, history, loss[1:], psnrs
 
 
 def create_plt(save_dir, config, gt_data, dummy_datas, dummy_labels, history, loss, psnrs=None):
+    logging.debug('进入create_plt方法')
     participants = config['participants']
     batch_size = config['batch_size']
     iters = config['iters']
@@ -378,6 +390,7 @@ def create_plt(save_dir, config, gt_data, dummy_datas, dummy_labels, history, lo
     with open(psnr_log_path, 'w') as f:
         f.write('\n'.join(psnr_str_list))
     
+    logging.debug('离开create_plt方法')
 
 def experiment_config_loop(mode, ckpt_location, context, experiments, current_config_idx, config_name):
     experiments[current_config_idx] = (experiments[current_config_idx] + 1) % len(
