@@ -400,7 +400,7 @@ def create_plt(save_dir, config, gt_data, dummy_datas, dummy_labels, history, lo
 
     plt.figure(figsize=(12, 6))
     loss_ = [loss[i] for i in range(len(loss)) if i % step_size == 0]
-    x = [i + 1 for i in range(len(loss)) if i % 1 == 0]
+    x = [i + 1 for i in range(len(loss)) if i % step_size == 0]
     plt.plot(x, loss_, color='#000000', label='loss')
     plt.title('Loss(log)')
     plt.xlabel('iter')
@@ -415,7 +415,7 @@ def create_plt(save_dir, config, gt_data, dummy_datas, dummy_labels, history, lo
 
     plt.figure(figsize=(12, 6))
     psnrs_ = [psnrs[i] for i in range(len(psnrs)) if i % step_size == 0]
-    x = [i + 1 for i in range(len(psnrs)) if i % 1 == 0]
+    x = [i + 1 for i in range(len(psnrs)) if i % step_size == 0]
     plt.plot(x, psnrs_, color='#000000', label='psnr')
     plt.title('Mean Psnr')
     plt.xlabel('iter')
