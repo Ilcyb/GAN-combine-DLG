@@ -17,7 +17,7 @@ for file in os.listdir(config_file_base_path):
 
 def execute_exp(config_file_path):
     config = read_experiment_config(config_file_path)
-    subprocess.call('python -u main.py --config-file={} --mode=production --device=cpu --base-config=../experiments_configs/base_config.json | tee ../logs/{}.log'.format(config_file_path, config['name']), shell=True)
+    subprocess.call('python -u main.py --config-file={} --mode=production --base-config=../experiments_configs/base_config.json | tee ../logs/{}.log'.format(config_file_path, config['name']), shell=True)
 
 process_list = []
 for i in range(len(config_files)):

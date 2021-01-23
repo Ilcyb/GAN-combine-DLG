@@ -226,8 +226,12 @@ def recover(save_dir, config, net, gt_data, dummy_datas, dummy_labels, mean_dy_d
         for j in range(batch_size):
             _.append([])
         history.append(_)
-    # optimizer = torch.optim.Adam(dummies, lr=lr)
-    optimizer = torch.optim.LBFGS(dummies)
+    
+    optimizer = None
+    if optim == 'adam':
+        optimizer = torch.optim.Adam(dummies, lr=lr)
+    elif optim == 'LBFGS':
+        optimizer = torch.optim.LBFGS(dummies)
 
     for i in range(participants):
         for j in range(batch_size):
@@ -235,8 +239,71 @@ def recover(save_dir, config, net, gt_data, dummy_datas, dummy_labels, mean_dy_d
             history[i][j].append(dummy_datas[i][j].cpu().clone())
 
     start_time = time.time()
-    for iter in range(iters):
-        def closure():
+    if optim == 'LBFGS':
+        for iter in range(iters):
+            def closure():
+                # compute mean dummy dy/dx
+                total_dy_dx = []
+                optimizer.zero_grad()
+                smooth = 0
+                for i in range(participants):
+                    pred = net(dummy_datas[i])
+                    dummy_loss = criterion(pred, dummy_labels[i])
+                    dy_dx = torch.autograd.grad(dummy_loss, net.parameters(), create_graph=True)
+                    # share the gradients with other clients
+                    dummy_dy_dx = [_ for _ in dy_dx]
+                    for j in range(len(dummy_dy_dx)):
+                        if len(total_dy_dx) <= j:
+                            total_dy_dx.append(dummy_dy_dx[j])
+                        else:
+                            total_dy_dx[j] += dummy_dy_dx[j]
+
+                dummy_mean_dy_dx = []
+                for i in range(len(total_dy_dx)):
+                    dummy_mean_dy_dx.append(total_dy_dx[i] / participants)
+
+                grad_diff = 0
+                for gx, gy in zip(dummy_mean_dy_dx, mean_dy_dx):  # TODO: fix the variablas here
+                    grad_diff += ((gx - gy) ** 2).sum()
+
+                if config['norm_method'] == 'smooth':
+                    # 图片smooth程度正则项
+                    for i in range(participants):
+                        for j in range(batch_size):
+                            smooth += compute_smooth_by_martix(dummy_datas[i][j])
+                            # print(smooth)
+                    grad_diff += norm_rate * smooth
+
+                grad_diff.backward()
+                return grad_diff
+
+            optimizer.step(closure)
+            current_loss = closure()
+            loss.append(current_loss.item())
+
+            mean_psnr = calculate_psnr(dummy_datas[0].cpu().clone().detach(), gt_data[0].cpu().clone().detach())
+            psnrs.append(mean_psnr)
+            # mean_psnr = 0
+            # for i in range(participants):
+            #     for j in range(batch_size):
+            #         psnr = calculate_psnr(tt(dummy_datas[i][j].cpu()), tt(gt_data[i][j].cpu()))
+            #         mean_psnr += psnr
+            # mean_psnr = mean_psnr / (participants*batch_size)
+            # psnrs.append(mean_psnr)
+
+            if (iter % step_size == 0) or iter == iters - 1:
+                for i in range(participants):
+                    for j in range(batch_size):
+                        history[i][j].append(dummy_datas[i][j].cpu().clone())
+                print("iter:{}\tloss:{:.5f}\tmean_psnr:{:.5f}\tcost time:{:.2f} secs".format(iter, current_loss.item(), mean_psnr, time.time() - start_time))
+                start_time = time.time()
+
+        for i in range(participants):
+            for j in range(batch_size):
+                history[i][j].append(dummy_datas[i][j].cpu().clone())
+    
+    elif optim == 'adam':
+        for iter in range(iters):
             # compute mean dummy dy/dx
             total_dy_dx = []
             optimizer.zero_grad()
@@ -270,32 +337,24 @@ def recover(save_dir, config, net, gt_data, dummy_datas, dummy_labels, mean_dy_d
                 grad_diff += norm_rate * smooth
 
             grad_diff.backward()
-            return grad_diff
 
-        optimizer.step(closure)
-        current_loss = closure()
-        loss.append(current_loss.item())
+            optimizer.step()
+            current_loss = grad_diff.item()
+            loss.append(current_loss)
 
-        mean_psnr = calculate_psnr(dummy_datas[0].cpu().clone().detach(), gt_data[0].cpu().clone().detach())
-        psnrs.append(mean_psnr)
-        # mean_psnr = 0
-        # for i in range(participants):
-        #     for j in range(batch_size):
-        #         psnr = calculate_psnr(tt(dummy_datas[i][j].cpu()), tt(gt_data[i][j].cpu()))
-        #         mean_psnr += psnr
-        # mean_psnr = mean_psnr / (participants*batch_size)
-        # psnrs.append(mean_psnr)
+            mean_psnr = calculate_psnr(dummy_datas[0].cpu().clone().detach(), gt_data[0].cpu().clone().detach())
+            psnrs.append(mean_psnr)
 
-        if (iter % step_size == 0) or iter == iters - 1:
-            for i in range(participants):
-                for j in range(batch_size):
-                    history[i][j].append(dummy_datas[i][j].cpu().clone())
-            print("iter:{}\tloss:{:.5f}\tmean_psnr:{:.5f}\tcost time:{:.2f} secs".format(iter, current_loss.item(), mean_psnr, time.time() - start_time))
-            start_time = time.time()
+            if (iter % step_size == 0) or iter == iters - 1:
+                for i in range(participants):
+                    for j in range(batch_size):
+                        history[i][j].append(dummy_datas[i][j].cpu().clone())
+                print("iter:{}\tloss:{:.5f}\tmean_psnr:{:.5f}\tcost time:{:.2f} secs".format(iter, current_loss, mean_psnr, time.time() - start_time))
+                start_time = time.time()
 
-    for i in range(participants):
-        for j in range(batch_size):
-            history[i][j].append(dummy_datas[i][j].cpu().clone())
+        for i in range(participants):
+            for j in range(batch_size):
+                history[i][j].append(dummy_datas[i][j].cpu().clone())
 
     return dummy_datas, dummy_labels, history, loss[1:], psnrs
 
@@ -340,7 +399,7 @@ def create_plt(save_dir, config, gt_data, dummy_datas, dummy_labels, history, lo
                         True, dict(nrow=1))
 
     plt.figure(figsize=(12, 6))
-    loss_ = [loss[i] for i in range(len(loss)) if i % 1 == 0]
+    loss_ = [loss[i] for i in range(len(loss)) if i % step_size == 0]
     x = [i + 1 for i in range(len(loss)) if i % 1 == 0]
     plt.plot(x, loss_, color='#000000', label='loss')
     plt.title('Loss(log)')
@@ -355,7 +414,7 @@ def create_plt(save_dir, config, gt_data, dummy_datas, dummy_labels, history, lo
     save_plt_img(save_dir, 'loss')
 
     plt.figure(figsize=(12, 6))
-    psnrs_ = [psnrs[i] for i in range(len(psnrs)) if i % 1 == 0]
+    psnrs_ = [psnrs[i] for i in range(len(psnrs)) if i % step_size == 0]
     x = [i + 1 for i in range(len(psnrs)) if i % 1 == 0]
     plt.plot(x, psnrs_, color='#000000', label='psnr')
     plt.title('Mean Psnr')
@@ -385,7 +444,7 @@ def experiment_config_loop(mode, ckpt_location, context, experiments, current_co
     context['experiments'] = experiments
     save_checkpoint(mode, ckpt_location, context)
 
-def experiment(mode, device, experiments, iters, config, base_generate_model_path, **idx):
+def experiment(mode, device, experiments, config, base_generate_model_path, **idx):
     print('''
 ========================================================
 Mode: {}
@@ -398,23 +457,25 @@ Dataset: {}
 Norm Method: {}
 Norm Rate: {}
 Iters: {}
+Step Size: {}
     '''.format(
         mode,
         experiments['batch_size'][idx['b_idx']],
         experiments['training_num'][idx['t_idx']],
-        experiments['optim'][idx['o_idx']],
+        experiments['optim'],
         experiments['lr'][idx['l_idx']],
         experiments['init'][idx['init_idx']],
         experiments['dataset'][idx['ds_idx']].upper(),
         experiments['norm_methods'][idx['nm_idx']],
         experiments['norm_rate'][idx['nr_idx']],
-        iters
+        config['iters'],
+        config['step_size']
     ))
 
     start_time = time.time()
     config['batch_size'] = experiments['batch_size'][idx['b_idx']]
     config['lr'] = experiments['lr'][idx['l_idx']]
-    config['optim'] = experiments['optim'][idx['o_idx']]
+    config['optim'] = experiments['optim']
     config['init_method'] = experiments['init'][idx['init_idx']]
     config['dataset'] = experiments['dataset'][idx['ds_idx']]
     config['norm_rate'] = experiments['norm_rate'][idx['nr_idx']]
@@ -504,7 +565,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='GAN combine DLG')
     parser.add_argument('--config-file', type=str, help='experiment config file path')
     parser.add_argument('--mode', type=str, default='debug', help='experiment mode')
-    parser.add_argument('--device', type=str, default='cuda', help='running device')
     parser.add_argument('--base-config', type=str, default='../base_config.json')
     args = parser.parse_args()
 
@@ -523,9 +583,13 @@ if __name__ == '__main__':
     norm_methods = experiment_config['norm_methods']
     norm_rate = experiment_config['norm_rate']
     iters = experiment_config['iters']
+    optim = experiment_config.get('optim', 'LBFGS')
+    device = experiment_config.get('device', 'cpu')
+    step_size = experiment_config.get('step_size', 1 if iters <= 100 else math.ceil(iters / 100))
+    lr = experiment_config.get('learning_rate', [0.002])
     mode = args.mode
 
-    if torch.cuda.is_available() and args.device == 'cuda':
+    if torch.cuda.is_available() and device == 'cuda':
         device = 'cuda'
     else:
         device = 'cpu'
@@ -546,10 +610,10 @@ if __name__ == '__main__':
         'participants': 1,
         'batch_size': 1,
         'dataset': 'mnist',
-        'lr': 0.002,
+        'lr': lr,
         'optim': 'LBFGS',
         'iters': iters,
-        'step_size': 1 if iters <= 100 else math.ceil(iters / 100),
+        'step_size': step_size,
         'dir': path,
         'init_method': 'gan',
         'norm_method': 'none',
@@ -567,9 +631,9 @@ if __name__ == '__main__':
         'current_ds': 0,
         'training_num': [i for i in range(1, training_num + 1)],
         'current_tn': 0,
-        'optim': ['LBFGS'],
+        'optim': optim,
         'current_opt': 0,
-        'lr': [0.005],
+        'lr': lr,
         'current_lr': 0,
         'norm_rate': norm_rate,
         'current_nr': 0,
@@ -602,7 +666,6 @@ if __name__ == '__main__':
         current_participant = experiments['current_participant']
         current_bs = experiments['current_bs']
         current_tn = experiments['current_tn']
-        current_opt = experiments['current_opt']
         current_lr = experiments['current_lr']
         current_init = experiments['current_init']
         current_ds = experiments['current_ds']
@@ -611,22 +674,20 @@ if __name__ == '__main__':
 
         for b_idx in range(current_bs, len(experiments['batch_size'])):
             for t_idx in range(current_tn, len(experiments['training_num'])):
-                for o_idx in range(current_opt, len(experiments['optim'])):
-                    for l_idx in range(current_lr, len(experiments['lr'])):
-                        for init_idx in range(current_init, len(experiments['init'])):
-                            for ds_idx in range(current_ds, len(experiments['dataset'])):
-                                for nr_idx in range(current_nr, len(experiments['norm_rate'])):
-                                    for nm_idx in range(current_nm, len(experiments['norm_methods'])):
-                                        idx = dict(b_idx=b_idx, t_idx=t_idx, o_idx=o_idx,
-                                        l_idx=l_idx, init_idx=init_idx, ds_idx=ds_idx, nr_idx=nr_idx,
-                                        nm_idx=nm_idx)
-                                        experiment(mode, device, experiments, iters, config, base_generate_model_path, **idx)
-                                        experiment_config_loop(mode, ckpt_location, context, experiments, 'current_nm', 'norm_methods')
-                                    experiment_config_loop(mode, ckpt_location, context, experiments, 'current_nr', 'norm_rate')
-                                experiment_config_loop(mode, ckpt_location, context, experiments, 'current_ds', 'dataset')
-                            experiment_config_loop(mode, ckpt_location, context, experiments, 'current_init', 'init')
-                        experiment_config_loop(mode, ckpt_location, context, experiments, 'current_lr', 'lr')
-                    experiment_config_loop(mode, ckpt_location, context, experiments, 'current_opt', 'optim')
+                for l_idx in range(current_lr, len(experiments['lr'])):
+                    for init_idx in range(current_init, len(experiments['init'])):
+                        for ds_idx in range(current_ds, len(experiments['dataset'])):
+                            for nr_idx in range(current_nr, len(experiments['norm_rate'])):
+                                for nm_idx in range(current_nm, len(experiments['norm_methods'])):
+                                    idx = dict(b_idx=b_idx, t_idx=t_idx,
+                                    l_idx=l_idx, init_idx=init_idx, ds_idx=ds_idx, nr_idx=nr_idx,
+                                    nm_idx=nm_idx)
+                                    experiment(mode, device, experiments, config, base_generate_model_path, **idx)
+                                    experiment_config_loop(mode, ckpt_location, context, experiments, 'current_nm', 'norm_methods')
+                                experiment_config_loop(mode, ckpt_location, context, experiments, 'current_nr', 'norm_rate')
+                            experiment_config_loop(mode, ckpt_location, context, experiments, 'current_ds', 'dataset')
+                        experiment_config_loop(mode, ckpt_location, context, experiments, 'current_init', 'init')
+                    experiment_config_loop(mode, ckpt_location, context, experiments, 'current_lr', 'lr')
                 experiment_config_loop(mode, ckpt_location, context, experiments, 'current_tn', 'training_num')
             experiment_config_loop(mode, ckpt_location, context, experiments, 'current_bs', 'batch_size')
 

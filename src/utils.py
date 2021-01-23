@@ -153,7 +153,11 @@ def compute_smooth_by_martix(img_tensor):
     total_value = 0
     for channel in range(size[0]):
         m_left = torch.roll(img_tensor[channel], -1, 1)
+        m_left_up = torch.roll(m_left, -1, 0)
+        m_left_down = torch.roll(m_left, 1, 0)
         m_right = torch.roll(img_tensor[channel], 1, 1)
+        m_right_up = torch.roll(m_right, -1, 0)
+        m_right_down = torch.roll(m_right, 1, 0)
         m_up = torch.roll(img_tensor[channel], -1, 0)
         m_down = torch.roll(img_tensor[channel], 1, 0)
         
@@ -161,6 +165,10 @@ def compute_smooth_by_martix(img_tensor):
         total_value += torch.sum(torch.abs(img_tensor[channel]-m_right))
         total_value += torch.sum(torch.abs(img_tensor[channel]-m_up))
         total_value += torch.sum(torch.abs(img_tensor[channel]-m_down))
+        total_value += torch.sum(torch.abs(img_tensor[channel]-m_left_up))
+        total_value += torch.sum(torch.abs(img_tensor[channel]-m_left_down))
+        total_value += torch.sum(torch.abs(img_tensor[channel]-m_right_up))
+        total_value += torch.sum(torch.abs(img_tensor[channel]-m_right_down))
 
     return total_value / (size[0]*size[1]*size[2])
 
