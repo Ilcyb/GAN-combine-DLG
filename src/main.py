@@ -150,7 +150,7 @@ def pure_gan_dummy(data_shape, participant, batch_size, config, generate_model):
     for i in range(batch_size):
         if config['dataset'] == 'mnist':
             # z = Variable(Tensor(np.random.normal(0, 1, (1, 100))))
-            z = torch.randn(1, 100)
+            z = torch.randn(1, 100, device=device)
         elif config['dataset'] == 'cifar10':
             z = torch.randn(1, 100, 1, 1, device=device)
         elif config['dataset'] == 'svhn':
@@ -508,6 +508,7 @@ Step Size: {}
         generate_model.load_state_dict(torch.load(
             os.path.join(generate_model_path, 'generator-state-epoch-100'),
             map_location=torch.device(device)))
+        generate_model.to(device)
         generate_model.eval()
     elif config['init_method'] == 'pure-gan' and config['dataset'] == 'cifar10':
         generate_model_path = os.path.join(base_generate_model_path,
@@ -516,6 +517,7 @@ Step Size: {}
         generate_model.load_state_dict(
             torch.load(os.path.join(generate_model_path, 'netG_epoch_24.pth'),
                         map_location=torch.device(device)))
+        generate_model.to(device)
         generate_model.eval()
     elif config['init_method'] == 'pure-gan' and config['dataset'] == 'svhn':
         generate_model_path = os.path.join(base_generate_model_path,
@@ -524,6 +526,7 @@ Step Size: {}
         generate_model.load_state_dict(torch.load(
             os.path.join(generate_model_path, 'SVHN_Generator_epoch50.mdl'),
             map_location=torch.device(device)))
+        generate_model.to(device)
         generate_model.eval()
 
     net = None

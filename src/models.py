@@ -169,7 +169,6 @@ class PureMnistGenerator(nn.Module):
 class PureCifar10Generator(nn.Module):
     def __init__(self):
         super(PureCifar10Generator, self).__init__()
-        self.ngpu = 1
         self.main = nn.Sequential(
             # input is Z, going into a convolution
             nn.ConvTranspose2d(100, 64 * 8, 4, 1, 0, bias=False),
@@ -194,11 +193,8 @@ class PureCifar10Generator(nn.Module):
         )   
 
     def forward(self, input):
-        if input.is_cuda and self.ngpu > 1:
-            output = nn.parallel.data_parallel(self.main, input, range(self.ngpu))
-        else:
-            output = self.main(input)
-            return output
+        output = self.main(input)
+        return output
 
 def deconv(in_channels, out_channels, kernel_size, stride=2, padding=1, batch_norm=True):
     layers = []
