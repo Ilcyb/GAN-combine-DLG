@@ -221,6 +221,7 @@ def recover(save_dir, config, net, gt_data, dummy_datas, dummy_labels, mean_dy_d
     loss = []
     psnrs = []
 
+    logging.debug('recover flag 1')
     participants = config['participants'] or 1
     batch_size = config['batch_size'] or 1
     iters = config['iters'] or 10000
@@ -238,6 +239,7 @@ def recover(save_dir, config, net, gt_data, dummy_datas, dummy_labels, mean_dy_d
         history.append(_)
     # optimizer = torch.optim.Adam(dummies, lr=lr)
     optimizer = torch.optim.LBFGS(dummies)
+    logging.debug('recover flag 2')
 
     for i in range(participants):
         for j in range(batch_size):
@@ -246,7 +248,9 @@ def recover(save_dir, config, net, gt_data, dummy_datas, dummy_labels, mean_dy_d
 
     start_time = time.time()
     for iter in range(iters):
+        logging.debug('recover flag 3')
         def closure():
+            logging.debug('recover flag 4')
             # compute mean dummy dy/dx
             total_dy_dx = []
             optimizer.zero_grad()
@@ -279,9 +283,11 @@ def recover(save_dir, config, net, gt_data, dummy_datas, dummy_labels, mean_dy_d
                         # print(smooth)
                 grad_diff += norm_rate * smooth
 
+            logging.debug('recover flag 5')
             grad_diff.backward()
             return grad_diff
 
+        logging.debug('recover flag 6')
         optimizer.step(closure)
         current_loss = closure()
         loss.append(current_loss.item())
@@ -296,6 +302,7 @@ def recover(save_dir, config, net, gt_data, dummy_datas, dummy_labels, mean_dy_d
         # mean_psnr = mean_psnr / (participants*batch_size)
         # psnrs.append(mean_psnr)
 
+        logging.debug('recover flag 7')
         if (iter % step_size == 0) or iter == iters - 1:
             for i in range(participants):
                 for j in range(batch_size):
