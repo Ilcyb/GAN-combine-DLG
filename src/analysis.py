@@ -35,11 +35,11 @@ class AnalysisFolder:
             self.working_list += sub_analysis_folder.working_list
 
     
-    def analysis(self):
+    def analysis(self, **kwargs):
         results = []
         for folder in self.working_list:
-            results.append(self.analysis_method(folder))
-        return self.merge_method(results)
+            results.append(self.analysis_method(folder, **kwargs))
+        return self.merge_method(results, **kwargs)
         
 
 def AnalysisMeanPSNR(log_path):
@@ -56,7 +56,7 @@ def AnalysisMeanPSNR(log_path):
     mean_psnr = mean_psnr / len(psnr)
     return max_psnr, mean_psnr
 
-def ExperimentsAnalysis(folder : AnalysisFolder, maxTopK=5, **args):
+def ExperimentsAnalysis(folder : AnalysisFolder, **kwargs):
     current_path = folder.root_path
     regex_result = None
     for regex in folder.folder_name_regexs:
@@ -82,20 +82,18 @@ def ExperimentsAnalysis(folder : AnalysisFolder, maxTopK=5, **args):
         except FileNotFoundError:
             print(os.path.join(training_path, 'meanpsnr.log') + ' not found')
     total_mean_psnr = total_mean_psnr / len(training_folders_paths)
-    topK_psnr = {k:v for k, v in sorted(topK_psnr.items(), key=lambda x:x[1], reverse=True)[:maxTopK]}
+    topK_psnr = {k:v for k, v in sorted(topK_psnr.items(), key=lambda x:x[1], reverse=True)[:kwargs['maxTopK']]}
     
     print('{} Analysis complete'.format(current_path))
     return dict(attributions=attributions, topK_psnr=topK_psnr, mean_psnr=total_mean_psnr)
 
-def MegerExperimentsAnalysis(sub_results:list, maxTopK=5, **args):
+def MegerExperimentsAnalysis(sub_results:list, **kwargs):
     # 同dataset, batch_size, init_method, norm, norm_rate
     results = {}
     for sub_result in sub_results:
         attributions = sub_result['attributions']
-        # exp_combine_key = '{}-{}-{}-{}-{}'.format(attributions['dataset'], attributions['batch_size'],
-        # attributions['init_method'], attributions['norm'], attributions.get('norm_rate', 'None'))
-        exp_combine_key = '{}-{}-{}-{}'.format(attributions['dataset'], attributions['batch_size'],
-        attributions['init_method'], attributions['norm'])
+        attributions['norm_rate'] = attributions.get('norm_rate', 'None')
+        exp_combine_key = kwargs['exp_combine_key'].format(**attributions)
         if results.get(exp_combine_key) is None:
             results[exp_combine_key] = {}
             # results[exp_combine_key]['attributions'] = attributions
@@ -109,7 +107,7 @@ def MegerExperimentsAnalysis(sub_results:list, maxTopK=5, **args):
     
     for key, result in results.items():
         result['mean_psnr'] = result['mean_psnr'] / result['mean_psnr_count']
-        result['topK_psnr'] = {k:v for k, v in sorted(result['topK_psnr'].items(), key=lambda x:x[1], reverse=True)[:maxTopK]} 
+        result['topK_psnr'] = {k:v for k, v in sorted(result['topK_psnr'].items(), key=lambda x:x[1], reverse=True)[:kwargs['maxTopK']]} 
         del(result['mean_psnr_count'])
         results[key] = result
 
@@ -117,12 +115,12 @@ def MegerExperimentsAnalysis(sub_results:list, maxTopK=5, **args):
 
 def main(config_path):
     configs = read_experiment_config(config_path)
-    for analysis_path in configs['analysis_paths']:
-        analysis_folder = AnalysisFolder(analysis_path['data_path'], [experiment_name_re_1, experiment_name_re_2],
+    for analysis_config in configs['analysis_configs']:
+        analysis_folder = AnalysisFolder(analysis_config['data_path'], [experiment_name_re_1, experiment_name_re_2],
             ExperimentsAnalysis, MegerExperimentsAnalysis)
         analysis_folder.scan()
-        result = analysis_folder.analysis()
-        with open(analysis_path['output_path'], 'w') as f:
+        result = analysis_folder.analysis(**analysis_config['analysis_config'])
+        with open(analysis_config['output_path'], 'w') as f:
             json.dump(result, f, ensure_ascii=False)
 
 if __name__ == '__main__':
