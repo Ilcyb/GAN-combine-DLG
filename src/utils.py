@@ -151,7 +151,7 @@ def check_folder_path(folder_paths):
         if not os.path.isdir(folder_path):
             os.makedirs(folder_path)
 
-def check_early_stop(psnr_list, early_stop_step_threshold=10, early_stop_var_threshold=10e-5):
+def check_early_stop(psnr_list, early_stop_step_threshold=10, early_stop_var_threshold=10e-6):
     if len(psnr_list) < early_stop_step_threshold:
         return False
     var = torch.var(torch.Tensor(psnr_list[-1*early_stop_step_threshold:])).item()
