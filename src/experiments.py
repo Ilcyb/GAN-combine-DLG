@@ -2,8 +2,15 @@ from multiprocessing import Process
 import subprocess
 import os
 import time
+import json
 
-from utils import read_experiment_config
+def read_experiment_config(config_path):
+    try:
+        with open(config_path, 'r') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        print('{} not exists'.format(config_path))
+        exit(-1)
 
 config_files = []
 config_file_base_path = '../experiments_configs'
