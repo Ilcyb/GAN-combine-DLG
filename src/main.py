@@ -240,7 +240,7 @@ def recover(save_dir, config, net, gt_data, dummy_datas, dummy_labels, mean_dy_d
 
     start_time = time.time()
     if optim == 'LBFGS':
-        for iter in range(iters):
+        for iter_num in range(iters):
             def closure():
                 # compute mean dummy dy/dx
                 total_dy_dx = []
@@ -291,19 +291,22 @@ def recover(save_dir, config, net, gt_data, dummy_datas, dummy_labels, mean_dy_d
             # mean_psnr = mean_psnr / (participants*batch_size)
             # psnrs.append(mean_psnr)
 
-            if (iter % step_size == 0) or iter == iters - 1:
+            if (iter_num % step_size == 0) or iter_num == iters - 1:
                 for i in range(participants):
                     for j in range(batch_size):
                         history[i][j].append(dummy_datas[i][j].cpu().clone())
-                print("iter:{}\tloss:{:.5f}\tmean_psnr:{:.5f}\tcost time:{:.2f} secs".format(iter, current_loss.item(), mean_psnr, time.time() - start_time))
+                print("iter_num:{}\tloss:{:.5f}\tmean_psnr:{:.5f}\tcost time:{:.2f} secs".format(iter_num, current_loss.item(), mean_psnr, time.time() - start_time))
                 start_time = time.time()
+            
+            if early_stop(psnrs, config, iter_num):
+                break
 
         for i in range(participants):
             for j in range(batch_size):
                 history[i][j].append(dummy_datas[i][j].cpu().clone())
     
     elif optim == 'adam':
-        for iter in range(iters):
+        for iter_num in range(iters):
             # compute mean dummy dy/dx
             total_dy_dx = []
             optimizer.zero_grad()
@@ -345,12 +348,15 @@ def recover(save_dir, config, net, gt_data, dummy_datas, dummy_labels, mean_dy_d
             mean_psnr = calculate_psnr(dummy_datas[0].cpu().clone().detach(), gt_data[0].cpu().clone().detach())
             psnrs.append(mean_psnr)
 
-            if (iter % step_size == 0) or iter == iters - 1:
+            if (iter_num % step_size == 0) or iter_num == iters - 1:
                 for i in range(participants):
                     for j in range(batch_size):
                         history[i][j].append(dummy_datas[i][j].cpu().clone())
-                print("iter:{}\tloss:{:.5f}\tmean_psnr:{:.5f}\tcost time:{:.2f} secs".format(iter, current_loss, mean_psnr, time.time() - start_time))
+                print("iter_num:{}\tloss:{:.5f}\tmean_psnr:{:.5f}\tcost time:{:.2f} secs".format(iter_num, current_loss, mean_psnr, time.time() - start_time))
                 start_time = time.time()
+            
+            if early_stop(psnrs, config, iter_num):
+                break
 
         for i in range(participants):
             for j in range(batch_size):
@@ -379,7 +385,7 @@ def create_plt(save_dir, config, gt_data, dummy_datas, dummy_labels, history, lo
             plt.figure(figsize=(20, 6))
             print("Participant {} Dummy label {} is {}.".format(p + 1, j + 1,
                                                                 torch.argmax(dummy_labels[p][j], dim=-1).item()))
-            for i in range((int)(iters / step_size)):
+            for i in range(min(len(history[p][j])-1, (int)(iters / step_size))):
                 # plt.subplot(row, 10, i + 1)
                 # plt.title("iter=%d" % ((i)*step_size))
                 # plt.imshow(history[p][j][i])
@@ -445,6 +451,11 @@ def experiment_config_loop(mode, ckpt_location, context, experiments, current_co
     save_checkpoint(mode, ckpt_location, context)
 
 def experiment(mode, device, experiments, config, base_generate_model_path, **idx):
+    # 早停参数复原
+    config['iters'] = experiments['iters']
+    config['step_size'] = experiments['step_size']
+    config['early_stop'] = False
+
     print('''
 ========================================================
 Mode: {}
@@ -590,6 +601,7 @@ if __name__ == '__main__':
     device = experiment_config.get('device', 'cpu')
     step_size = experiment_config.get('step_size', 1 if iters <= 100 else math.ceil(iters / 100))
     lr = experiment_config.get('learning_rate', [0.002])
+    early_stop_step = experiment_config.get('early_stop_step', int(iters/50))
     mode = args.mode
 
     if torch.cuda.is_available() and device == 'cuda':
@@ -621,7 +633,8 @@ if __name__ == '__main__':
         'init_method': 'gan',
         'norm_method': 'none',
         'norm_rate': 0.0001,
-        'regular_ratio': 0
+        'regular_ratio': 0,
+        'early_stop_step': early_stop_step
     }
 
     criterion = cross_entropy_for_onehot
@@ -643,7 +656,9 @@ if __name__ == '__main__':
         'init': init_methods,
         'current_init': 0,
         'norm_methods': norm_methods,
-        'current_nm': 0
+        'current_nm': 0,
+        'iters': iters,
+        'step_size': step_size
     }
 
     done = False

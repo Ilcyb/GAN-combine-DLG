@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import os
 import pickle
 import json
+import math
 
 tp = transforms.Compose([
     transforms.Resize(32),
@@ -115,39 +116,6 @@ def get_truth_label(gradients):
     
     raise ValueError('{} 中没有符号与其他项不一致的项'.format(gradients))
 
-# def compute_smooth(img_tensor):
-#     size = img_tensor.size()
-#     total_value = 0
-#     for channel in range(size[0]):
-#         for width in range(size[1]):
-#             for height in range(size[2]):
-#                 for offset_w in [0,1,-1]:
-#                     for offset_h in [0,1,-1]:
-#                         target_w = width+offset_w
-#                         target_h = height+offset_h
-#                         if target_w<0 or target_h<0 or target_w>=size[1] or target_h>=size[2]:
-#                             pass
-#                         else:
-#                             total_value += abs(img_tensor[channel][width][height] - img_tensor[channel][target_w][target_h])
-#     return total_value / (size[0]*size[1]*size[2])
-
-def compute_smooth(img_tensor):
-    size = img_tensor.size()
-    total_value = 0
-    for channel in range(size[0]):
-        for width in range(1, size[1]-1):
-            for height in range(1, size[2]-1):
-                total_value += abs(img_tensor[channel][width][height] - img_tensor[channel][width][height+1])
-                total_value += abs(img_tensor[channel][width][height] - img_tensor[channel][width][height-1])
-                total_value += abs(img_tensor[channel][width][height] - img_tensor[channel][width+1][height])
-                total_value += abs(img_tensor[channel][width][height] - img_tensor[channel][width-1][height])
-                total_value += abs(img_tensor[channel][width][height] - img_tensor[channel][width+1][height+1])
-                total_value += abs(img_tensor[channel][width][height] - img_tensor[channel][width+1][height-1])
-                total_value += abs(img_tensor[channel][width][height] - img_tensor[channel][width-1][height+1])
-                total_value += abs(img_tensor[channel][width][height] - img_tensor[channel][width-1][height-1])
-    
-    return total_value / (size[0]*size[1]*size[2])
-
 def compute_smooth_by_martix(img_tensor):
     size = img_tensor.size()
     total_value = 0
@@ -182,3 +150,17 @@ def check_folder_path(folder_paths):
     for folder_path in folder_paths:
         if not os.path.isdir(folder_path):
             os.makedirs(folder_path)
+
+def check_early_stop(psnr_list, early_stop_step_threshold=10, early_stop_var_threshold=10e-5):
+    var = torch.var(torch.Tensor(psnr_list[-1*early_stop_step_threshold:])).item()
+    if var < early_stop_var_threshold:
+        return True
+    return False
+
+def early_stop(psnrs, config, iter_num):
+    if check_early_stop(psnrs, early_stop_step_threshold=config['early_stop_step']):
+        config['early_stop'] = True
+        config['iters'] = iter_num
+        config['step_size'] = 1 if iter_num <= 100 else math.ceil(iter_num / 100)
+        return True
+    return False
