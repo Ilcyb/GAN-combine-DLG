@@ -3,11 +3,16 @@ import os
 import json
 import sys
 from utils import read_experiment_config
+from PIL import Image
+import torchvision.transforms.functional as TF
 
 experiment_name_re_1 = re.compile(r'.+ds-(?P<dataset>.+)_bs-(?P<batch_size>.+)_init-(?P<init_method>.+)_iter-(?P<iters>.+)_op-(?P<optim>.+)_nm-(?P<norm>[a-z]+)$')
 experiment_name_re_2 = re.compile(r'.+ds-(?P<dataset>.+)_bs-(?P<batch_size>.+)_init-(?P<init_method>.+)_iter-(?P<iters>.+)_op-(?P<optim>.+)_nm-(?P<norm>.+)_nr=(?P<norm_rate>[0-9e-]+)$')
 
 psnr_re = re.compile(r'iter-\d+:([0-9\.-]+)')
+
+result_img_re = re.compile(r'result1-(?P<batch_num>\d)\.png')
+truth_img_re = re.compile(r'truth_img1-(?P<batch_num>\d)\.png')
 
 class AnalysisFolder:
 
@@ -56,7 +61,25 @@ def AnalysisMeanPSNR(log_path):
     mean_psnr = mean_psnr / len(psnr)
     return max_psnr, mean_psnr
 
-def ExperimentsAnalysis(folder : AnalysisFolder, **kwargs):
+def AnalysisPermutationsPSNR(folder_path):
+    file_list = os.listdir(folder_path)
+    result_img_list = []
+    truth_img_list = []
+    for filename in file_list:
+        result_match = result_img_re.match(filename)
+        truth_match = truth_img_re.match(filename)
+        if result_match is not None:
+            result_img = Image.open(os.path.join(folder_path, filename))
+            result_img = TF.to_tensor(result_img)
+            result_img_list.append(result_img)
+        elif truth_match is not None:
+            truth_img = Image.open(os.path.join(folder_path, filename))
+            truth_img = TF.to_tensor(truth_img)
+            truth_img_list.append(truth_img)
+        else:
+            continue
+    
+def CommonExperimentsAnalysis(folder : AnalysisFolder, **kwargs):
     current_path = folder.root_path
     regex_result = None
     for regex in folder.folder_name_regexs:
@@ -78,7 +101,7 @@ def ExperimentsAnalysis(folder : AnalysisFolder, **kwargs):
         try:
             max_psnr, mean_psnr = AnalysisMeanPSNR(os.path.join(training_path, 'meanpsnr.log'))
             total_mean_psnr += mean_psnr
-            topK_psnr[training_path] = max_psnr
+            topK_psnr["file://"+os.path.join(training_path, 'compare.png')] = max_psnr
         except FileNotFoundError:
             print(os.path.join(training_path, 'meanpsnr.log') + ' not found')
     total_mean_psnr = total_mean_psnr / len(training_folders_paths)
@@ -87,7 +110,7 @@ def ExperimentsAnalysis(folder : AnalysisFolder, **kwargs):
     print('{} Analysis complete'.format(current_path))
     return dict(attributions=attributions, topK_psnr=topK_psnr, mean_psnr=total_mean_psnr)
 
-def MegerExperimentsAnalysis(sub_results:list, **kwargs):
+def MegerCommonExperimentsAnalysis(sub_results:list, **kwargs):
     # 同dataset, batch_size, init_method, norm, norm_rate
     results = {}
     for sub_result in sub_results:
@@ -117,7 +140,7 @@ def main(config_path):
     configs = read_experiment_config(config_path)
     for analysis_config in configs['analysis_configs']:
         analysis_folder = AnalysisFolder(analysis_config['data_path'], [experiment_name_re_1, experiment_name_re_2],
-            ExperimentsAnalysis, MegerExperimentsAnalysis)
+            CommonExperimentsAnalysis, MegerCommonExperimentsAnalysis)
         analysis_folder.scan()
         result = analysis_folder.analysis(**analysis_config['analysis_config'])
         with open(analysis_config['output_path'], 'w') as f:
