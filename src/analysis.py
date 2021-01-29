@@ -2,7 +2,8 @@ import re
 import os
 import json
 import sys
-from utils import read_experiment_config
+import pathlib
+from utils import read_experiment_config, calculate_psnr
 from PIL import Image
 import torchvision.transforms.functional as TF
 
@@ -47,19 +48,17 @@ class AnalysisFolder:
         return self.merge_method(results, **kwargs)
         
 
-def AnalysisMeanPSNR(log_path):
+def AnalysisMeanPSNR(folder_path):
+    log_path = os.path.join(folder_path, 'meanpsnr.log')
     psnr = []
     with open(log_path, 'r') as f:
         for line in f.readlines():
             psnr.append(float(psnr_re.match(line)[1]))
     max_psnr = 0
-    mean_psnr = 0
     for p in psnr:
         if p > max_psnr:
             max_psnr = p
-        mean_psnr += p
-    mean_psnr = mean_psnr / len(psnr)
-    return max_psnr, mean_psnr
+    return max_psnr
 
 def AnalysisPermutationsPSNR(folder_path):
     file_list = os.listdir(folder_path)
@@ -78,6 +77,21 @@ def AnalysisPermutationsPSNR(folder_path):
             truth_img_list.append(truth_img)
         else:
             continue
+
+    if len(result_img_list) == 0:
+        raise FileNotFoundError('{} experiment is not finished'.format(folder_path))
+
+    max_total_psnr = 0
+    for result_img in result_img_list:
+        max_psnr = 0
+        for truth_img in truth_img_list:
+            psnr = calculate_psnr(result_img, truth_img).item()
+            if psnr > max_psnr:
+                max_psnr = psnr
+        max_total_psnr += max_psnr
+    
+    return max_total_psnr/len(result_img_list)
+    
     
 def CommonExperimentsAnalysis(folder : AnalysisFolder, **kwargs):
     current_path = folder.root_path
@@ -99,11 +113,11 @@ def CommonExperimentsAnalysis(folder : AnalysisFolder, **kwargs):
     topK_psnr = {}
     for training_path in training_folders_paths:
         try:
-            max_psnr, mean_psnr = AnalysisMeanPSNR(os.path.join(training_path, 'meanpsnr.log'))
-            total_mean_psnr += mean_psnr
-            topK_psnr["file://"+os.path.join(training_path, 'compare.png')] = max_psnr
-        except FileNotFoundError:
-            print(os.path.join(training_path, 'meanpsnr.log') + ' not found')
+            max_psnr = kwargs['psnr_extract_method'](training_path)
+            total_mean_psnr += max_psnr
+            topK_psnr[pathlib.Path(os.path.join(training_path, 'compare.png')).as_uri()] = max_psnr
+        except FileNotFoundError as e:
+            print(str(e))
     total_mean_psnr = total_mean_psnr / len(training_folders_paths)
     topK_psnr = {k:v for k, v in sorted(topK_psnr.items(), key=lambda x:x[1], reverse=True)[:kwargs['maxTopK']]}
     
@@ -142,7 +156,12 @@ def main(config_path):
         analysis_folder = AnalysisFolder(analysis_config['data_path'], [experiment_name_re_1, experiment_name_re_2],
             CommonExperimentsAnalysis, MegerCommonExperimentsAnalysis)
         analysis_folder.scan()
-        result = analysis_folder.analysis(**analysis_config['analysis_config'])
+        kwargs = analysis_config['analysis_config']
+        if kwargs['psnr_extract'] == 'common':
+            kwargs['psnr_extract_method'] = AnalysisMeanPSNR
+        elif kwargs['psnr_extract'] == 'permutations':
+            kwargs['psnr_extract_method'] = AnalysisPermutationsPSNR
+        result = analysis_folder.analysis(**kwargs)
         with open(analysis_config['output_path'], 'w') as f:
             json.dump(result, f, ensure_ascii=False)
 

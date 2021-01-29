@@ -7,3 +7,4 @@ DebugExperiments/
 GenerateModels/
 __pycache__/
 logs/
+.vscode/
