@@ -47,17 +47,18 @@ def calculate_psnr(img1, img2):
 def get_save_path(training_num, config):
     if not os.path.isdir(config['dir']):
         os.makedirs(config['dir'])
-    save_dir = 'ds-{}_bs-{}_init-{}_iter-{}_op-{}_nm-{}'.format(config['dataset'], 
+    save_dir = 'ds-{}_bs-{}_init-{}_iter-{}_op-{}_nm-{}_sd-{}'.format(config['dataset'], 
                                         #    config['participants'],
                                            config['batch_size'],
                                            config['init_method'],
                                            config['iters'],
                                            config['optim'],
-                                           config['norm_method'])
+                                           config['norm_method'],
+                                           config['smooth_direction'])
     if config['norm_method'] != 'none':
-        save_dir += '_nr={}'.format(config['norm_rate'])
+        save_dir += '_nr-{}'.format(config['norm_rate'])
     if config['optim'] != 'LBFGS':
-        save_dir += '_lr={}'.format(config['lr'])
+        save_dir += '_lr-{}'.format(config['lr'])
 
     save_dir = os.path.join(config['dir'], os.path.join(save_dir, 'training_'+str(training_num)))
     if not os.path.isdir(save_dir):
@@ -116,7 +117,7 @@ def get_truth_label(gradients):
     
     raise ValueError('{} 中没有符号与其他项不一致的项'.format(gradients))
 
-def compute_smooth_by_martix(img_tensor):
+def compute_smooth_by_martix(img_tensor, directions=4):
     size = img_tensor.size()
     total_value = 0
     for channel in range(size[0]):
@@ -129,14 +130,20 @@ def compute_smooth_by_martix(img_tensor):
         m_up = torch.roll(img_tensor[channel], -1, 0)
         m_down = torch.roll(img_tensor[channel], 1, 0)
         
-        total_value += torch.sum(torch.abs(img_tensor[channel]-m_left))
-        total_value += torch.sum(torch.abs(img_tensor[channel]-m_right))
-        total_value += torch.sum(torch.abs(img_tensor[channel]-m_up))
-        total_value += torch.sum(torch.abs(img_tensor[channel]-m_down))
-        total_value += torch.sum(torch.abs(img_tensor[channel]-m_left_up))
-        total_value += torch.sum(torch.abs(img_tensor[channel]-m_left_down))
-        total_value += torch.sum(torch.abs(img_tensor[channel]-m_right_up))
-        total_value += torch.sum(torch.abs(img_tensor[channel]-m_right_down))
+        if directions == 4:
+            total_value += torch.sum(torch.abs(img_tensor[channel]-m_left))
+            total_value += torch.sum(torch.abs(img_tensor[channel]-m_right))
+            total_value += torch.sum(torch.abs(img_tensor[channel]-m_up))
+            total_value += torch.sum(torch.abs(img_tensor[channel]-m_down))
+        elif directions == 8:
+            total_value += torch.sum(torch.abs(img_tensor[channel]-m_left))
+            total_value += torch.sum(torch.abs(img_tensor[channel]-m_right))
+            total_value += torch.sum(torch.abs(img_tensor[channel]-m_up))
+            total_value += torch.sum(torch.abs(img_tensor[channel]-m_down))
+            total_value += torch.sum(torch.abs(img_tensor[channel]-m_left_up))
+            total_value += torch.sum(torch.abs(img_tensor[channel]-m_left_down))
+            total_value += torch.sum(torch.abs(img_tensor[channel]-m_right_up))
+            total_value += torch.sum(torch.abs(img_tensor[channel]-m_right_down))
 
     return total_value / (size[0]*size[1]*size[2])
 

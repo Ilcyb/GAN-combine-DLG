@@ -218,6 +218,7 @@ def recover(save_dir, config, net, gt_data, dummy_datas, dummy_labels, mean_dy_d
     lr = config['lr'] or 0.02
     optim = config['optim'] or 'adam'
     norm_rate = config['norm_rate']
+    smooth_direction = config['smooth_direction']
 
     for i in range(participants):
         dummies.append(dummy_datas[i])
@@ -270,7 +271,7 @@ def recover(save_dir, config, net, gt_data, dummy_datas, dummy_labels, mean_dy_d
                     # 图片smooth程度正则项
                     for i in range(participants):
                         for j in range(batch_size):
-                            smooth += compute_smooth_by_martix(dummy_datas[i][j])
+                            smooth += compute_smooth_by_martix(dummy_datas[i][j], smooth_direction)
                             # print(smooth)
                     grad_diff += norm_rate * smooth
 
@@ -335,7 +336,7 @@ def recover(save_dir, config, net, gt_data, dummy_datas, dummy_labels, mean_dy_d
                 # 图片smooth程度正则项
                 for i in range(participants):
                     for j in range(batch_size):
-                        smooth += compute_smooth_by_martix(dummy_datas[i][j])
+                        smooth += compute_smooth_by_martix(dummy_datas[i][j], smooth_direction)
                         # print(smooth)
                 grad_diff += norm_rate * smooth
 
@@ -469,6 +470,7 @@ Norm Method: {}
 Norm Rate: {}
 Iters: {}
 Step Size: {}
+Smooth Direction: {}
     '''.format(
         mode,
         experiments['batch_size'][idx['b_idx']],
@@ -480,7 +482,8 @@ Step Size: {}
         experiments['norm_methods'][idx['nm_idx']],
         experiments['norm_rate'][idx['nr_idx']],
         config['iters'],
-        config['step_size']
+        config['step_size'],
+        experiments['smooth_direction'][idx['sd_idx']]
     ))
 
     start_time = time.time()
@@ -491,6 +494,7 @@ Step Size: {}
     config['dataset'] = experiments['dataset'][idx['ds_idx']]
     config['norm_rate'] = experiments['norm_rate'][idx['nr_idx']]
     config['norm_method'] = experiments['norm_methods'][idx['nm_idx']]
+    config['smooth_direction'] = experiments['smooth_direction'][idx['sd_idx']]
 
     generate_models = []
     generate_model = None
@@ -602,6 +606,7 @@ if __name__ == '__main__':
     step_size = experiment_config.get('step_size', 1 if iters <= 100 else math.ceil(iters / 100))
     lr = experiment_config.get('learning_rate', [0.002])
     early_stop_step = experiment_config.get('early_stop_step', int(iters/50))
+    smooth_direction = experiment_config.get('smooth_direction')
     mode = args.mode
 
     if torch.cuda.is_available() and device == 'cuda':
@@ -658,7 +663,9 @@ if __name__ == '__main__':
         'norm_methods': norm_methods,
         'current_nm': 0,
         'iters': iters,
-        'step_size': step_size
+        'step_size': step_size,
+        'smooth_direction': smooth_direction,
+        'current_sd': 0
     }
 
     done = False
@@ -689,6 +696,7 @@ if __name__ == '__main__':
         current_ds = experiments['current_ds']
         current_nr = experiments['current_nr']
         current_nm = experiments['current_nm']
+        current_sd = experiments['current_sd']
 
         for b_idx in range(current_bs, len(experiments['batch_size'])):
             for t_idx in range(current_tn, len(experiments['training_num'])):
@@ -697,10 +705,12 @@ if __name__ == '__main__':
                         for ds_idx in range(current_ds, len(experiments['dataset'])):
                             for nr_idx in range(current_nr, len(experiments['norm_rate'])):
                                 for nm_idx in range(current_nm, len(experiments['norm_methods'])):
-                                    idx = dict(b_idx=b_idx, t_idx=t_idx,
-                                    l_idx=l_idx, init_idx=init_idx, ds_idx=ds_idx, nr_idx=nr_idx,
-                                    nm_idx=nm_idx)
-                                    experiment(mode, device, experiments, config, base_generate_model_path, **idx)
+                                    for sd_idx in range(current_sd, len(experiments['smooth_direction'])):
+                                        idx = dict(b_idx=b_idx, t_idx=t_idx,
+                                        l_idx=l_idx, init_idx=init_idx, ds_idx=ds_idx, nr_idx=nr_idx,
+                                        nm_idx=nm_idx, sd_idx=sd_idx)
+                                        experiment(mode, device, experiments, config, base_generate_model_path, **idx)
+                                        experiment_config_loop(mode, ckpt_location, context, experiments, 'current_sd', 'smooth_direction')
                                     experiment_config_loop(mode, ckpt_location, context, experiments, 'current_nm', 'norm_methods')
                                 experiment_config_loop(mode, ckpt_location, context, experiments, 'current_nr', 'norm_rate')
                             experiment_config_loop(mode, ckpt_location, context, experiments, 'current_ds', 'dataset')

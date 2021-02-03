@@ -3,6 +3,8 @@ import os
 import json
 import sys
 import pathlib
+import uuid
+from urllib.parse import urlparse, unquote
 from utils import read_experiment_config, calculate_psnr
 from PIL import Image
 import torchvision.transforms.functional as TF
@@ -150,20 +152,84 @@ def MegerCommonExperimentsAnalysis(sub_results:list, **kwargs):
 
     return results
 
+def CompareImageAnalysis(folder : AnalysisFolder, **kwargs):
+    current_path = folder.root_path
+    regex_result = None
+    for regex in folder.folder_name_regexs:
+        regex_result = regex.match(current_path)
+        if regex_result is None:
+            continue
+        else:
+            break
+    attributions = regex_result.groupdict()
+
+    training_folders_paths = []
+    for sub_file in os.listdir(folder.root_path):
+        sub_file_path = os.path.join(folder.root_path, sub_file)
+        if os.path.isdir(sub_file_path):
+            training_folders_paths.append(sub_file_path)
+    
+    compare_imgs_paths = []
+    for training_path in training_folders_paths:
+        compare_img_path = os.path.join(training_path, 'compare.png')
+        if not os.path.exists(compare_img_path):
+            print('{} don\'t have a compare.png'.format(training_path))
+            continue
+        compare_imgs_paths.append(compare_img_path)
+    print('{} Analysis complete'.format(current_path))
+    return dict(attributions=attributions, compare_imgs_paths=compare_imgs_paths)
+
+def MergeCompareImageAnalysis(sub_results:list, **kwargs):
+    results = {}
+    for sub_result in sub_results:
+        attributions = sub_result['attributions']
+        attributions['norm_rate'] = attributions.get('norm_rate', 'None')
+        exp_combine_key = kwargs['exp_combine_key'].format(**attributions)
+        if results.get(exp_combine_key) is None:
+            results[exp_combine_key] = {}
+            results[exp_combine_key] = sub_result['compare_imgs_paths']
+            continue
+        results[exp_combine_key] += sub_result['compare_imgs_paths']
+    
+    return results
+
 def main(config_path):
     configs = read_experiment_config(config_path)
     for analysis_config in configs['analysis_configs']:
-        analysis_folder = AnalysisFolder(analysis_config['data_path'], [experiment_name_re_1, experiment_name_re_2],
-            CommonExperimentsAnalysis, MegerCommonExperimentsAnalysis)
-        analysis_folder.scan()
-        kwargs = analysis_config['analysis_config']
-        if kwargs['psnr_extract'] == 'common':
-            kwargs['psnr_extract_method'] = AnalysisMeanPSNR
-        elif kwargs['psnr_extract'] == 'permutations':
-            kwargs['psnr_extract_method'] = AnalysisPermutationsPSNR
-        result = analysis_folder.analysis(**kwargs)
-        with open(analysis_config['output_path'], 'w') as f:
-            json.dump(result, f, ensure_ascii=False)
+        if analysis_config['analysis_method'] == 'psnr':
+            analysis_folder = AnalysisFolder(analysis_config['data_path'], [experiment_name_re_1, experiment_name_re_2],
+                CommonExperimentsAnalysis, MegerCommonExperimentsAnalysis)
+            analysis_folder.scan()
+            kwargs = analysis_config['analysis_config']
+            if kwargs['psnr_extract'] == 'common':
+                kwargs['psnr_extract_method'] = AnalysisMeanPSNR
+            elif kwargs['psnr_extract'] == 'permutations':
+                kwargs['psnr_extract_method'] = AnalysisPermutationsPSNR
+            result = analysis_folder.analysis(**kwargs)
+            with open(analysis_config['output_path'], 'w') as f:
+                json.dump(result, f, ensure_ascii=False)
+        elif analysis_config['analysis_method'] == 'compare_img':
+            analysis_folder = AnalysisFolder(analysis_config['data_path'], [experiment_name_re_1, experiment_name_re_2],
+                CommonExperimentsAnalysis, MegerCommonExperimentsAnalysis)
+            analysis_folder.scan()
+            kwargs = analysis_config['analysis_config']
+            if kwargs['psnr_extract'] == 'common':
+                kwargs['psnr_extract_method'] = AnalysisMeanPSNR
+            elif kwargs['psnr_extract'] == 'permutations':
+                kwargs['psnr_extract_method'] = AnalysisPermutationsPSNR
+            result = analysis_folder.analysis(**kwargs)
+            if not os.path.exists(analysis_config['output_path']):
+                os.mkdir(analysis_config['output_path'])
+            for folder_name, result_psnr in result.items():
+                count = 1
+                folder_path = os.path.join(analysis_config['output_path'], folder_name)
+                if not os.path.exists(folder_path):
+                    os.mkdir(folder_path)
+                for compare_img_path, _ in sorted(result_psnr['topK_psnr'].items(), key=lambda x:x[1], reverse=True)[:kwargs['maxTopK']]:
+                    compare_img_path = urlparse(unquote(compare_img_path, 'utf-8'))
+                    compare_img_path = os.path.abspath(os.path.join(compare_img_path.netloc, compare_img_path.path))
+                    os.symlink(compare_img_path, os.path.join(folder_path, 'compare_{}.png'.format(count)))
+                    count += 1
 
 if __name__ == '__main__':
     if len(sys.argv) != 2:
