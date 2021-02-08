@@ -11,6 +11,7 @@ import torchvision.transforms.functional as TF
 
 experiment_name_re_1 = re.compile(r'.+ds-(?P<dataset>.+)_bs-(?P<batch_size>.+)_init-(?P<init_method>.+)_iter-(?P<iters>.+)_op-(?P<optim>.+)_nm-(?P<norm>[a-z]+)$')
 experiment_name_re_2 = re.compile(r'.+ds-(?P<dataset>.+)_bs-(?P<batch_size>.+)_init-(?P<init_method>.+)_iter-(?P<iters>.+)_op-(?P<optim>.+)_nm-(?P<norm>.+)_nr=(?P<norm_rate>[0-9e-]+)$')
+experiment_name_re_3 = re.compile(r'.+ds-(?P<dataset>.+)_bs-(?P<batch_size>.+)_init-(?P<init_method>.+)_iter-(?P<iters>.+)_op-(?P<optim>.+)_nm-(?P<norm>.+)_sd-(?P<smooth_direction>.+)_nr-(?P<norm_rate>[0-9e-]+)$')
 
 psnr_re = re.compile(r'iter-\d+:([0-9\.-]+)')
 
@@ -132,6 +133,7 @@ def MegerCommonExperimentsAnalysis(sub_results:list, **kwargs):
     for sub_result in sub_results:
         attributions = sub_result['attributions']
         attributions['norm_rate'] = attributions.get('norm_rate', 'None')
+        attributions['smooth_direction'] = attributions.get('smooth_direction', 'None')
         exp_combine_key = kwargs['exp_combine_key'].format(**attributions)
         if results.get(exp_combine_key) is None:
             results[exp_combine_key] = {}
@@ -184,6 +186,7 @@ def MergeCompareImageAnalysis(sub_results:list, **kwargs):
     for sub_result in sub_results:
         attributions = sub_result['attributions']
         attributions['norm_rate'] = attributions.get('norm_rate', 'None')
+        attributions['smooth_direction'] = attributions.get('smooth_direction', 'None')
         exp_combine_key = kwargs['exp_combine_key'].format(**attributions)
         if results.get(exp_combine_key) is None:
             results[exp_combine_key] = {}
@@ -193,11 +196,14 @@ def MergeCompareImageAnalysis(sub_results:list, **kwargs):
     
     return results
 
+# def PlotAnalysis(folder: AnalysisFolder, **kwargs):
+
+
 def main(config_path):
     configs = read_experiment_config(config_path)
     for analysis_config in configs['analysis_configs']:
         if analysis_config['analysis_method'] == 'psnr':
-            analysis_folder = AnalysisFolder(analysis_config['data_path'], [experiment_name_re_1, experiment_name_re_2],
+            analysis_folder = AnalysisFolder(analysis_config['data_path'], [experiment_name_re_1, experiment_name_re_2, experiment_name_re_3],
                 CommonExperimentsAnalysis, MegerCommonExperimentsAnalysis)
             analysis_folder.scan()
             kwargs = analysis_config['analysis_config']
@@ -209,7 +215,7 @@ def main(config_path):
             with open(analysis_config['output_path'], 'w') as f:
                 json.dump(result, f, ensure_ascii=False)
         elif analysis_config['analysis_method'] == 'compare_img':
-            analysis_folder = AnalysisFolder(analysis_config['data_path'], [experiment_name_re_1, experiment_name_re_2],
+            analysis_folder = AnalysisFolder(analysis_config['data_path'], [experiment_name_re_1, experiment_name_re_2, experiment_name_re_3],
                 CommonExperimentsAnalysis, MegerCommonExperimentsAnalysis)
             analysis_folder.scan()
             kwargs = analysis_config['analysis_config']
