@@ -1,5 +1,6 @@
 import torch.nn as nn
 import torch
+from torch.nn.modules.conv import Conv2d
 
 class LeNet_Cifar100(nn.Module):
     def __init__(self):
@@ -96,6 +97,38 @@ class LeNet_SVHN(nn.Module):
             nn.Linear(768, 100),
             act(),
             nn.Linear(100, 10)
+        )
+        
+    def forward(self, x):
+        out = self.body(x)
+        out = out.view(out.size(0), -1)
+        out = self.fc(out)
+        return out
+
+class LeNet_LFW(nn.Module):
+    def __init__(self):
+        # 3*32*32
+        super(LeNet_LFW, self).__init__()
+        act = nn.Sigmoid
+        self.body = nn.Sequential(
+            nn.Conv2d(3, 6, 5),
+            # 6*28*28
+            act(),
+            
+            nn.Conv2d(6, 6, 5),
+            # 6*24*24
+            act(),
+
+            nn.Conv2d(6, 18, 5),
+            # 18*20*20
+            act(),
+
+            nn.Conv2d(18, 36, 5),
+            # 36*16*16
+            act()
+        )
+        self.fc = nn.Sequential(
+            nn.Linear(36*16*16, 5749)
         )
         
     def forward(self, x):
@@ -228,3 +261,70 @@ class SVHNPureGenerator(nn.Module):
         out = torch.tanh(out)
         
         return out
+
+class CIFAR100PureGenerator(nn.Module):
+    def __init__(self, ngpu=1):
+        super(CIFAR100PureGenerator, self).__init__()
+        self.ngpu = ngpu
+        self.main = nn.Sequential(
+            # input is Z, going into a convolution
+            nn.ConvTranspose2d(100, 64 * 8, 4, 1, 0, bias=False),
+            nn.BatchNorm2d(64 * 8),
+            nn.ReLU(True),
+            # state size. (64*8) x 4 x 4
+            nn.ConvTranspose2d(64 * 8, 64 * 4, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(64 * 4),
+            nn.ReLU(True),
+            # state size. (64*4) x 8 x 8
+            nn.ConvTranspose2d(64 * 4, 64 * 2, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(64 * 2),
+            nn.ReLU(True),
+            # state size. (64*2) x 16 x 16
+            nn.ConvTranspose2d(64 * 2, 64, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(64),
+            nn.ReLU(True),
+            # state size. (64) x 32 x 32
+            nn.ConvTranspose2d(64, 3, 4, 2, 1, bias=False),
+            nn.Tanh()
+            # state size. (3) x 64 x 64
+        )
+
+    def forward(self, input):
+        if input.is_cuda and self.ngpu > 1:
+            output = nn.parallel.data_parallel(self.main, input, range(self.ngpu))
+        else:
+            output = self.main(input)
+            return output
+
+class LFWPureGenerator(nn.Module):
+    def __init__(self, ngpu) -> None:
+        super(LFWPureGenerator, self).__init__()
+        self.ngpu = ngpu
+        self.main = nn.Sequential(
+            nn.ConvTranspose2d(100, 64*8, 4, 1, 0, bias=False),
+            nn.BatchNorm2d(64*8),
+            nn.ReLU(inplace=True),
+            # (64*8) * 4 * 4
+
+            nn.ConvTranspose2d(64*8, 64*4, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(64*4),
+            nn.ReLU(inplace=True),
+            # (64*4) * 8 * 8
+
+            nn.ConvTranspose2d(64*4, 64*2, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(64*2),
+            nn.ReLU(inplace=True),
+            # (64*2) * 16 * 16
+
+            nn.ConvTranspose2d(64*2, 64, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(64),
+            nn.ReLU(inplace=True),
+            # (64) * 32 * 32
+
+            nn.ConvTranspose2d(64, 3, 4, 2, 1, bias=False),
+            nn.Tanh()
+            # (3) * 64 * 64
+        )
+
+    def forward(self, input):
+        return self.main(input)

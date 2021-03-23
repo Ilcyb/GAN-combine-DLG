@@ -31,6 +31,8 @@ def get_real_datas(net, save_dir, config):
         dst = datasets.CIFAR100(base_config['dataset']['cifar100_path'], download=True)
     elif dataset == 'svhn':
         dst = datasets.SVHN(base_config['dataset']['svhn_path'], download=True)
+    elif dataset == 'lfw':
+        dst = datasets.ImageFolder(base_config['dataset']['lfw_path'])
 
     participants = config['participants']
     batch_size = config['batch_size']
@@ -272,6 +274,7 @@ def recover(save_dir, config, net, gt_data, dummy_datas, dummy_labels, mean_dy_d
                     for i in range(participants):
                         for j in range(batch_size):
                             smooth += compute_smooth_by_martix(dummy_datas[i][j], smooth_direction)
+                            # smooth += compute_mean(dummy_datas[i][j])
                             # print(smooth)
                     grad_diff += norm_rate * smooth
 
@@ -337,6 +340,7 @@ def recover(save_dir, config, net, gt_data, dummy_datas, dummy_labels, mean_dy_d
                 for i in range(participants):
                     for j in range(batch_size):
                         smooth += compute_smooth_by_martix(dummy_datas[i][j], smooth_direction)
+                        # smooth += compute_mean(dummy_datas[i][j])
                         # print(smooth)
                 grad_diff += norm_rate * smooth
 
@@ -543,6 +547,24 @@ Smooth Direction: {}
             map_location=torch.device(device)))
         generate_model.to(device)
         generate_model.eval()
+    elif config['init_method'] == 'pure-gan' and config['dataset'] == 'cifar100':
+        generate_model_path = os.path.join(base_generate_model_path,
+                                            'CIFAR100-PureGenerateModel')
+        generate_model = CIFAR100PureGenerator()
+        generate_model.load_state_dict(torch.load(
+            os.path.join(generate_model_path, 'netG_epoch_24.pth'),
+            map_location=torch.device(device)))
+        generate_model.to(device)
+        generate_model.eval()
+    elif config['init_method'] == 'pure-gan' and config['dataset'] == 'lfw':
+        generate_model_path = os.path.join(base_generate_model_path,
+                                            'LFW-PureGenerateModel')
+        generate_model = LFWPureGenerator()
+        generate_model.load_state_dict(torch.load(
+            os.path.join(generate_model_path, 'modelG'),
+            map_location=torch.device(device)))
+        generate_model.to(device)
+        generate_model.eval()
 
     net = None
     if config['dataset'] == 'mnist':
@@ -557,6 +579,9 @@ Smooth Direction: {}
     elif config['dataset'] == 'svhn':
         config['num_classes'] = 10
         net = LeNet_SVHN().to(device)
+    elif config['dataset'] == 'lfw':
+        config['num_classes'] = 5749
+        net = LeNet_LFW().to(device)
     net.apply(weights_init)
 
     save_dir = get_save_path(experiments['training_num'][idx['t_idx']], config)
