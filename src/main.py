@@ -157,6 +157,10 @@ def pure_gan_dummy(data_shape, participant, batch_size, config, generate_model):
             z = torch.randn(1, 100, 1, 1, device=device)
         elif config['dataset'] == 'svhn':
             z = torch.randn((1, 100), device=device)
+        elif config['dataset'] == 'cifar100':
+            z = torch.randn(1, 100, 1, 1, device=device)
+        elif config['dataset'] == 'lfw':
+            z = torch.randn(1, 100, 1, 1, device=device)
         dummy_data = gtp(tt(generate_model(z).squeeze())).view(1, *(data_shape[2:]))
         dummies.append(dummy_data)
     return torch.cat(dummies, 0).to(device).requires_grad_(True)

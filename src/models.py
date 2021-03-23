@@ -297,7 +297,7 @@ class CIFAR100PureGenerator(nn.Module):
             return output
 
 class LFWPureGenerator(nn.Module):
-    def __init__(self, ngpu) -> None:
+    def __init__(self, ngpu=1) -> None:
         super(LFWPureGenerator, self).__init__()
         self.ngpu = ngpu
         self.main = nn.Sequential(
