@@ -216,6 +216,7 @@ def recover(save_dir, config, net, gt_data, dummy_datas, dummy_labels, mean_dy_d
     history = []
     loss = []
     psnrs = []
+    recover_procedure = []
 
     participants = config['participants'] or 1
     batch_size = config['batch_size'] or 1
@@ -225,14 +226,18 @@ def recover(save_dir, config, net, gt_data, dummy_datas, dummy_labels, mean_dy_d
     optim = config['optim'] or 'adam'
     norm_rate = config['norm_rate']
     smooth_direction = config['smooth_direction']
+    procedure_save = config['procedure_save']
 
     for i in range(participants):
         dummies.append(dummy_datas[i])
         dummies.append(dummy_labels[i])
         _ = []
+        __ = []
         for j in range(batch_size):
             _.append([])
+            __.append([])
         history.append(_)
+        recover_procedure.append(__)
     
     optimizer = None
     if optim == 'adam':
@@ -244,6 +249,8 @@ def recover(save_dir, config, net, gt_data, dummy_datas, dummy_labels, mean_dy_d
         for j in range(batch_size):
             # 将初始化噪声加入history
             history[i][j].append(dummy_datas[i][j].cpu().clone())
+            if procedure_save is True:
+                recover_procedure.append(dummy_datas[i][j].cpu().clone())
 
     start_time = time.time()
     if optim == 'LBFGS':
@@ -299,6 +306,11 @@ def recover(save_dir, config, net, gt_data, dummy_datas, dummy_labels, mean_dy_d
             # mean_psnr = mean_psnr / (participants*batch_size)
             # psnrs.append(mean_psnr)
 
+            if procedure_save is True:
+                for i in range(participants):
+                    for j in range(batch_size):
+                        recover_procedure[i][j].append(dummy_datas[i][j].cpu().clone())
+
             if (iter_num % step_size == 0) or iter_num == iters - 1:
                 for i in range(participants):
                     for j in range(batch_size):
@@ -312,6 +324,8 @@ def recover(save_dir, config, net, gt_data, dummy_datas, dummy_labels, mean_dy_d
         for i in range(participants):
             for j in range(batch_size):
                 history[i][j].append(dummy_datas[i][j].cpu().clone())
+                if procedure_save is True:
+                    recover_procedure.append(dummy_datas[i][j].cpu().clone())
     
     elif optim == 'adam':
         for iter_num in range(iters):
@@ -357,6 +371,11 @@ def recover(save_dir, config, net, gt_data, dummy_datas, dummy_labels, mean_dy_d
             mean_psnr = calculate_psnr(dummy_datas[0].cpu().clone().detach(), gt_data[0].cpu().clone().detach())
             psnrs.append(mean_psnr)
 
+            if procedure_save is True:
+                for i in range(participants):
+                    for j in range(batch_size):
+                        recover_procedure[i][j].append(dummy_datas[i][j].cpu().clone())
+
             if (iter_num % step_size == 0) or iter_num == iters - 1:
                 for i in range(participants):
                     for j in range(batch_size):
@@ -370,20 +389,28 @@ def recover(save_dir, config, net, gt_data, dummy_datas, dummy_labels, mean_dy_d
         for i in range(participants):
             for j in range(batch_size):
                 history[i][j].append(dummy_datas[i][j].cpu().clone())
+                if procedure_save is True:
+                    recover_procedure.append(dummy_datas[i][j].cpu().clone())
 
-    return dummy_datas, dummy_labels, history, loss[1:], psnrs
+    return dummy_datas, dummy_labels, history, recover_procedure, loss[1:], psnrs
 
 
-def create_plt(save_dir, config, gt_data, dummy_datas, dummy_labels, history, loss, psnrs=None):
+def create_plt(save_dir, config, gt_data, dummy_datas, dummy_labels, history, recover_procedure, loss, psnrs=None):
     participants = config['participants']
     batch_size = config['batch_size']
     iters = config['iters']
     step_size = config['step_size']
+    procedure_save = config['procedure_save']
 
     row = math.ceil(iters / step_size / 10)
     compare_result = []
     compare_truth = []
     history_grid = []
+
+    if procedure_save is True:
+        procedure_folder = os.path.join(save_dir, 'procedure')
+        check_folder_path([procedure_folder])
+
     for p in range(participants):
         for j in range(batch_size):
             # plt.figure()
@@ -407,6 +434,11 @@ def create_plt(save_dir, config, gt_data, dummy_datas, dummy_labels, history, lo
             save_tensor_img(save_dir, 'procedure{}-{}'.format(p + 1, j + 1),
                             history_grid, True,
                             dict(nrow=math.ceil(math.sqrt(len(history_grid)))))
+
+            if procedure_save is True:
+                for count in range(len(recover_procedure[p][j])):
+                    save_tensor_img(procedure_folder, 'procedure{}-{}-{}'.format(p + 1, j + 1, count + 1), recover_procedure[p][j][count])
+
         save_tensor_img(save_dir, 'result_img_grid', dummy_datas[p], True)
         save_tensor_img(save_dir, 'compare',
                         [vutils.make_grid(dummy_datas[p], len(dummy_datas[p])),
@@ -597,11 +629,11 @@ Smooth Direction: {}
                                                         generate_model,
                                                         generate_models,
                                                         recoverd_onehot_label)
-    dummy_datas, dummy_labels, history, loss, psnrs = recover(save_dir, config,
+    dummy_datas, dummy_labels, history, recover_procedure, loss, psnrs = recover(save_dir, config,
                                                                 net, gt_data, dummy_datas,
                                                                 recoverd_onehot_label,
                                                                 mean_dy_dx)
-    create_plt(save_dir, config, gt_data, dummy_datas, dummy_labels, history,
+    create_plt(save_dir, config, gt_data, dummy_datas, dummy_labels, history, recover_procedure,
                 loss, psnrs)
     plt.close('all')
     cost_time = time.time() - start_time
@@ -636,6 +668,7 @@ if __name__ == '__main__':
     lr = experiment_config.get('learning_rate', [0.002])
     early_stop_step = experiment_config.get('early_stop_step', int(iters/50))
     smooth_direction = experiment_config.get('smooth_direction')
+    procedure_save = experiment_config.get('procedure_save', False)
     mode = args.mode
 
     if torch.cuda.is_available() and device == 'cuda':
@@ -668,7 +701,8 @@ if __name__ == '__main__':
         'norm_method': 'none',
         'norm_rate': 0.0001,
         'regular_ratio': 0,
-        'early_stop_step': early_stop_step
+        'early_stop_step': early_stop_step,
+        'procedure_save': procedure_save,
     }
 
     criterion = cross_entropy_for_onehot
