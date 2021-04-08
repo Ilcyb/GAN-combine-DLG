@@ -1,3 +1,4 @@
+from torch.functional import Tensor
 from torchvision import transforms
 import torch
 import torch.nn.functional as F
@@ -42,6 +43,8 @@ def change_learning_rate(optimizer, lr):
 def calculate_psnr(img1, img2):
     """"Calculating peak signal-to-noise ratio (PSNR) between two images."""
     mse = torch.mean((img1 - img2) ** 2)
+    if mse.item() == 0.0:
+        return torch.tensor(80)
     return 10 * torch.log10(1 / mse)
 
 def get_save_path(training_num, config):
