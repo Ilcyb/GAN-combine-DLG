@@ -105,6 +105,13 @@ def AnalysisPermutationsPSNR(folder_path):
     
     return max_total_psnr/len(result_img_list)
     
+def GetPSNRList(folder_path):
+    log_path = os.path.join(folder_path, 'meanpsnr.log')
+    psnr = []
+    with open(log_path, 'r') as f:
+        for line in f.readlines():
+            psnr.append(float(psnr_re.match(line)[1]))
+    return psnr
     
 def CommonExperimentsAnalysis(folder : AnalysisFolder, **kwargs):
     current_path = folder.root_path
@@ -214,8 +221,76 @@ def MergeCompareImageAnalysis(sub_results:list, **kwargs):
     
     return results
 
-# def PlotAnalysis(folder: AnalysisFolder, **kwargs):
+def PSNRListAnalysis(folder : AnalysisFolder, **kwargs):
+    current_path = folder.root_path
+    regex_result = None
+    for regex in folder.folder_name_regexs:
+        regex_result = regex.match(current_path)
+        if regex_result is None:
+            continue
+        else:
+            break
+    attributions = regex_result.groupdict()
+    training_folders_paths = []
+    for sub_file in os.listdir(current_path):
+        sub_file_path = os.path.join(current_path, sub_file)
+        if os.path.isdir(sub_file_path):
+            training_folders_paths.append(sub_file_path)
+    
+    training_nums = 0
+    mean_psnr_list = []
+    mean_psnr_nums_list = []
+    for training_path in training_folders_paths:
+        try:
+            psnr_list = kwargs['psnr_extract_method'](training_path)
+            mean_psnr_list = \
+                [i+j for i,j in zip(mean_psnr_list,psnr_list)]+(mean_psnr_list[len(psnr_list):] \
+                if len(mean_psnr_list)>len(psnr_list) \
+                else psnr_list[len(mean_psnr_list):])
+            mean_psnr_nums_list = \
+                [i+1 for i,_ in zip(mean_psnr_nums_list,psnr_list)]+(mean_psnr_nums_list[len(psnr_list):] \
+                if len(mean_psnr_nums_list)>len(psnr_list) \
+                else [1]*(len(psnr_list)-len(mean_psnr_nums_list)))
+            training_nums+=1
+        except FileNotFoundError as e:
+            print(str(e))
 
+    print('{} Analysis complete'.format(current_path))
+    
+    return dict(attributions=attributions, training_nums=training_nums, mean_psnr_list=mean_psnr_list, mean_psnr_nums_list=mean_psnr_nums_list)
+
+def MergePSNRListAnalysis(sub_results:list, **kwargs):
+    results = {}
+    for sub_result in sub_results:
+        attributions = sub_result['attributions']
+        attributions['norm_rate'] = attributions.get('norm_rate', 'None')
+        attributions['smooth_direction'] = attributions.get('smooth_direction', 'None')
+        exp_combine_key = kwargs['exp_combine_key'].format(**attributions)
+        if results.get(exp_combine_key) is None:
+            results[exp_combine_key] = {}
+            results[exp_combine_key]['training_nums'] = sub_result['training_nums']
+            results[exp_combine_key]['mean_psnr_list'] = sub_result['mean_psnr_list']
+            results[exp_combine_key]['mean_psnr_nums_list'] = sub_result['mean_psnr_nums_list']
+            continue
+        results[exp_combine_key]['training_nums'] += sub_result['training_nums']
+        results[exp_combine_key]['mean_psnr_list'] = \
+            [i+j for i,j in zip(results[exp_combine_key]['mean_psnr_list'],sub_result['mean_psnr_list'])] \
+            +(results[exp_combine_key]['mean_psnr_list'][len(sub_result['mean_psnr_list']):] if \
+            len(results[exp_combine_key]['mean_psnr_list'])>len(sub_result['mean_psnr_list']) else \
+            sub_result['mean_psnr_list'][len(results[exp_combine_key]['mean_psnr_list']):]) 
+        results[exp_combine_key]['mean_psnr_nums_list'] = \
+            [i+j for i,j in zip(results[exp_combine_key]['mean_psnr_nums_list'],sub_result['mean_psnr_nums_list'])]+ \
+            (results[exp_combine_key]['mean_psnr_nums_list'][len(sub_result['mean_psnr_nums_list']):] \
+            if len(results[exp_combine_key]['mean_psnr_nums_list'])>len(sub_result['mean_psnr_nums_list']) \
+            else sub_result['mean_psnr_nums_list'][len(results[exp_combine_key]['mean_psnr_nums_list']):])
+    
+    for key, result in results.items():
+        for i in range(len(result['mean_psnr_list'])):
+            result['mean_psnr_list'][i] = result['mean_psnr_list'][i] / result['mean_psnr_nums_list'][i]
+        del(result['mean_psnr_nums_list'])
+        results[key] = result
+
+    return results
 
 def main(config_path):
     configs = read_experiment_config(config_path)
@@ -254,6 +329,15 @@ def main(config_path):
                     compare_img_path = os.path.abspath(os.path.join(compare_img_path.netloc, compare_img_path.path))
                     os.symlink(compare_img_path, os.path.join(folder_path, 'compare_{}.png'.format(count)))
                     count += 1
+        elif analysis_config['analysis_method'] == 'psnr_list':
+            analysis_folder = AnalysisFolder(analysis_config['data_path'], [experiment_name_re_1, experiment_name_re_2, experiment_name_re_3, experiment_name_re_4],
+                PSNRListAnalysis, MergePSNRListAnalysis)
+            analysis_folder.scan()
+            kwargs = analysis_config.get('analysis_config')
+            kwargs['psnr_extract_method'] = GetPSNRList
+            result = analysis_folder.analysis(**kwargs)
+            with open(analysis_config['output_path'], 'w') as f:
+                json.dump(result, f, ensure_ascii=False, allow_nan=False)
 
 if __name__ == '__main__':
     if len(sys.argv) != 2:
