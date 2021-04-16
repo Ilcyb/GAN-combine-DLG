@@ -36,7 +36,10 @@ def get_real_datas(net, save_dir, config):
 
     participants = config['participants']
     batch_size = config['batch_size']
-    img_idxs = [np.random.choice(range(10000), batch_size) for i in range(participants)]
+    if config['truth_imgs'] is None:
+        img_idxs = [np.random.choice(range(10000), batch_size) for _ in range(participants)]
+    else:
+        img_idxs = [config['truth_imgs'][:batch_size] for _ in range(participants)]
     leak_data_size = tp(dst[0][0]).size()
 
     data_shape = (participants, batch_size, *leak_data_size)
@@ -669,6 +672,9 @@ if __name__ == '__main__':
     early_stop_step = experiment_config.get('early_stop_step', int(iters/50))
     smooth_direction = experiment_config.get('smooth_direction')
     procedure_save = experiment_config.get('procedure_save', False)
+    truth_imgs = experiment_config.get('truth_imgs', None)
+    if truth_imgs != None:
+        assert len(truth_imgs) == max(batch_size)
     mode = args.mode
 
     if torch.cuda.is_available() and device == 'cuda':
@@ -703,6 +709,7 @@ if __name__ == '__main__':
         'regular_ratio': 0,
         'early_stop_step': early_stop_step,
         'procedure_save': procedure_save,
+        'truth_imgs': truth_imgs
     }
 
     criterion = cross_entropy_for_onehot

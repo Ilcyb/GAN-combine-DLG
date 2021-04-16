@@ -9,10 +9,14 @@ from utils import read_experiment_config, calculate_psnr
 from PIL import Image
 import torchvision.transforms.functional as TF
 
+# GAN-combine-DLG regex
 experiment_name_re_1 = re.compile(r'.+ds-(?P<dataset>.+)_bs-(?P<batch_size>.+)_init-(?P<init_method>.+)_iter-(?P<iters>.+)_op-(?P<optim>.+)_nm-(?P<norm>[a-z]+)$')
 experiment_name_re_2 = re.compile(r'.+ds-(?P<dataset>.+)_bs-(?P<batch_size>.+)_init-(?P<init_method>.+)_iter-(?P<iters>.+)_op-(?P<optim>.+)_nm-(?P<norm>.+)_nr=(?P<norm_rate>[0-9e-]+)$')
 experiment_name_re_3 = re.compile(r'.+ds-(?P<dataset>.+)_bs-(?P<batch_size>.+)_init-(?P<init_method>.+)_iter-(?P<iters>.+)_op-(?P<optim>.+)_nm-(?P<norm>.+)_sd-(?P<smooth_direction>.+)_nr-(?P<norm_rate>[0-9e-]+)$')
 experiment_name_re_4 = re.compile(r'.+ds-(?P<dataset>.+)_bs-(?P<batch_size>.+)_init-(?P<init_method>.+)_iter-(?P<iters>.+)_op-(?P<optim>.+)_nm-(?P<norm>[a-z]+)_sd-(?P<smooth_direction>[0-9])$')
+
+# inverting-gradients regex
+experiment_name_re_5 = re.compile(r'.+name_.+_ds-(?P<dataset>.+)_bs-(?P<batch_size>[0-9]+)$')
 
 blacklist = ['procedure']
 
@@ -45,11 +49,8 @@ class AnalysisFolder:
                 continue
             sub_analysis_folder = AnalysisFolder(complete_sub_file_path, self.folder_name_regexs, 
                                     self.analysis_method, self.merge_method)
-            for regex in self.folder_name_regexs:
-                regex_match = regex.match(complete_sub_file_path)
-                if regex_match is not None:
-                    self.working_list.append(sub_analysis_folder)
-                    break
+            if sub_analysis_folder.isWorkingFolder():
+                self.working_list.append(sub_analysis_folder)
             sub_analysis_folder.scan()
             self.working_list += sub_analysis_folder.working_list
 
@@ -59,7 +60,13 @@ class AnalysisFolder:
         for folder in self.working_list:
             results.append(self.analysis_method(folder, **kwargs))
         return self.merge_method(results, **kwargs)
-        
+
+    def isWorkingFolder(self):
+        for regex in self.folder_name_regexs:
+            regex_match = regex.match(self.root_path)
+            if regex_match is not None:
+                return True
+        return False
 
 def AnalysisMeanPSNR(folder_path):
     log_path = os.path.join(folder_path, 'meanpsnr.log')
@@ -112,6 +119,13 @@ def GetPSNRList(folder_path):
         for line in f.readlines():
             psnr.append(float(psnr_re.match(line)[1]))
     return psnr
+
+# inverting gradients 实验获取PSNR方法
+def GetPSNRByJsonFile(folder_path):
+    info_path = os.path.join(folder_path, 'info.json')
+    with open(info_path, 'r') as f:
+        info = json.load(f)
+        return info['psnr']
     
 def CommonExperimentsAnalysis(folder : AnalysisFolder, **kwargs):
     current_path = folder.root_path
@@ -295,8 +309,13 @@ def MergePSNRListAnalysis(sub_results:list, **kwargs):
 def main(config_path):
     configs = read_experiment_config(config_path)
     for analysis_config in configs['analysis_configs']:
+        if analysis_config['experiment_type'] == 'GAN-combine-DLG':
+            regexs = [experiment_name_re_1, experiment_name_re_2, experiment_name_re_3, experiment_name_re_4]
+        elif analysis_config['experiment_type'] == 'inverting-gradients':
+            regexs = [experiment_name_re_5]
+
         if analysis_config['analysis_method'] == 'psnr':
-            analysis_folder = AnalysisFolder(analysis_config['data_path'], [experiment_name_re_1, experiment_name_re_2, experiment_name_re_3, experiment_name_re_4],
+            analysis_folder = AnalysisFolder(analysis_config['data_path'], regexs,
                 CommonExperimentsAnalysis, MegerCommonExperimentsAnalysis)
             analysis_folder.scan()
             kwargs = analysis_config['analysis_config']
@@ -304,11 +323,13 @@ def main(config_path):
                 kwargs['psnr_extract_method'] = AnalysisMeanPSNR
             elif kwargs['psnr_extract'] == 'permutations':
                 kwargs['psnr_extract_method'] = AnalysisPermutationsPSNR
+            elif kwargs['psnr_extract'] == 'from-json-file':
+                kwargs['psnr_extract_method'] = GetPSNRByJsonFile
             result = analysis_folder.analysis(**kwargs)
             with open(analysis_config['output_path'], 'w') as f:
                 json.dump(result, f, ensure_ascii=False, allow_nan=False)
         elif analysis_config['analysis_method'] == 'compare_img':
-            analysis_folder = AnalysisFolder(analysis_config['data_path'], [experiment_name_re_1, experiment_name_re_2, experiment_name_re_3, experiment_name_re_4],
+            analysis_folder = AnalysisFolder(analysis_config['data_path'], regexs,
                 CommonExperimentsAnalysis, MegerCommonExperimentsAnalysis)
             analysis_folder.scan()
             kwargs = analysis_config['analysis_config']
@@ -330,7 +351,7 @@ def main(config_path):
                     os.symlink(compare_img_path, os.path.join(folder_path, 'compare_{}.png'.format(count)))
                     count += 1
         elif analysis_config['analysis_method'] == 'psnr_list':
-            analysis_folder = AnalysisFolder(analysis_config['data_path'], [experiment_name_re_1, experiment_name_re_2, experiment_name_re_3, experiment_name_re_4],
+            analysis_folder = AnalysisFolder(analysis_config['data_path'], regexs,
                 PSNRListAnalysis, MergePSNRListAnalysis)
             analysis_folder.scan()
             kwargs = analysis_config.get('analysis_config')
