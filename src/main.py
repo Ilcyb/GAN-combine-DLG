@@ -674,7 +674,7 @@ if __name__ == '__main__':
     procedure_save = experiment_config.get('procedure_save', False)
     truth_imgs = experiment_config.get('truth_imgs', None)
     if truth_imgs != None:
-        assert len(truth_imgs) == max(batch_size)
+        assert len(truth_imgs) >= max(batch_size)
     mode = args.mode
 
     if torch.cuda.is_available() and device == 'cuda':

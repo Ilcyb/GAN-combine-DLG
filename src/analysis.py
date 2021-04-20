@@ -252,26 +252,22 @@ def PSNRListAnalysis(folder : AnalysisFolder, **kwargs):
             training_folders_paths.append(sub_file_path)
     
     training_nums = 0
-    mean_psnr_list = []
-    mean_psnr_nums_list = []
+    psnr_list_len = kwargs['psnr_list_len']
+    total_psnr_list = [0] * psnr_list_len
     for training_path in training_folders_paths:
         try:
             psnr_list = kwargs['psnr_extract_method'](training_path)
-            mean_psnr_list = \
-                [i+j for i,j in zip(mean_psnr_list,psnr_list)]+(mean_psnr_list[len(psnr_list):] \
-                if len(mean_psnr_list)>len(psnr_list) \
-                else psnr_list[len(mean_psnr_list):])
-            mean_psnr_nums_list = \
-                [i+1 for i,_ in zip(mean_psnr_nums_list,psnr_list)]+(mean_psnr_nums_list[len(psnr_list):] \
-                if len(mean_psnr_nums_list)>len(psnr_list) \
-                else [1]*(len(psnr_list)-len(mean_psnr_nums_list)))
+            if len(psnr_list) < psnr_list_len:
+                psnr_list += [psnr_list[-1]] * (psnr_list_len-len(psnr_list))
+            elif len(psnr_list) > psnr_list_len:
+                psnr_list = psnr_list[:psnr_list_len]
+            total_psnr_list = [i+j for i,j in zip(total_psnr_list, psnr_list)]
             training_nums+=1
         except FileNotFoundError as e:
             print(str(e))
 
     print('{} Analysis complete'.format(current_path))
-    
-    return dict(attributions=attributions, training_nums=training_nums, mean_psnr_list=mean_psnr_list, mean_psnr_nums_list=mean_psnr_nums_list)
+    return dict(attributions=attributions, training_nums=training_nums, total_psnr_list=total_psnr_list)
 
 def MergePSNRListAnalysis(sub_results:list, **kwargs):
     results = {}
@@ -283,25 +279,18 @@ def MergePSNRListAnalysis(sub_results:list, **kwargs):
         if results.get(exp_combine_key) is None:
             results[exp_combine_key] = {}
             results[exp_combine_key]['training_nums'] = sub_result['training_nums']
-            results[exp_combine_key]['mean_psnr_list'] = sub_result['mean_psnr_list']
-            results[exp_combine_key]['mean_psnr_nums_list'] = sub_result['mean_psnr_nums_list']
+            results[exp_combine_key]['total_psnr_list'] = sub_result['total_psnr_list']
+            results[exp_combine_key]['mean_psnr_list'] = [0] * len(sub_result['total_psnr_list'])
             continue
         results[exp_combine_key]['training_nums'] += sub_result['training_nums']
-        results[exp_combine_key]['mean_psnr_list'] = \
-            [i+j for i,j in zip(results[exp_combine_key]['mean_psnr_list'],sub_result['mean_psnr_list'])] \
-            +(results[exp_combine_key]['mean_psnr_list'][len(sub_result['mean_psnr_list']):] if \
-            len(results[exp_combine_key]['mean_psnr_list'])>len(sub_result['mean_psnr_list']) else \
-            sub_result['mean_psnr_list'][len(results[exp_combine_key]['mean_psnr_list']):]) 
-        results[exp_combine_key]['mean_psnr_nums_list'] = \
-            [i+j for i,j in zip(results[exp_combine_key]['mean_psnr_nums_list'],sub_result['mean_psnr_nums_list'])]+ \
-            (results[exp_combine_key]['mean_psnr_nums_list'][len(sub_result['mean_psnr_nums_list']):] \
-            if len(results[exp_combine_key]['mean_psnr_nums_list'])>len(sub_result['mean_psnr_nums_list']) \
-            else sub_result['mean_psnr_nums_list'][len(results[exp_combine_key]['mean_psnr_nums_list']):])
+        results[exp_combine_key]['total_psnr_list'] = [i+j for i,j in zip(sub_result['total_psnr_list'], results[exp_combine_key]['total_psnr_list'])]
     
     for key, result in results.items():
-        for i in range(len(result['mean_psnr_list'])):
-            result['mean_psnr_list'][i] = result['mean_psnr_list'][i] / result['mean_psnr_nums_list'][i]
-        del(result['mean_psnr_nums_list'])
+        if result['training_nums'] == 0:
+            pass
+        else:
+            result['mean_psnr_list'] = [psnr/result['training_nums'] for psnr in result['total_psnr_list']]
+        del(result['total_psnr_list'])
         results[key] = result
 
     return results
@@ -309,6 +298,8 @@ def MergePSNRListAnalysis(sub_results:list, **kwargs):
 def main(config_path):
     configs = read_experiment_config(config_path)
     for analysis_config in configs['analysis_configs']:
+        if analysis_config['enable'] == False:
+            continue
         if analysis_config['experiment_type'] == 'GAN-combine-DLG':
             regexs = [experiment_name_re_1, experiment_name_re_2, experiment_name_re_3, experiment_name_re_4]
         elif analysis_config['experiment_type'] == 'inverting-gradients':
