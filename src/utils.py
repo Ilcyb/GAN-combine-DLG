@@ -57,11 +57,15 @@ def get_save_path(training_num, config):
                                            config['iters'],
                                            config['optim'],
                                            config['norm_method'],
-                                           config['smooth_direction'])
+                                           config['smooth_direction'],
+                                           config['noise_type'])
     if config['norm_method'] != 'none':
         save_dir += '_nr-{}'.format(config['norm_rate'])
     if config['optim'] != 'LBFGS':
         save_dir += '_lr-{}'.format(config['lr'])
+    save_dir += '_nt-{}'.format(config['noise_type'])
+    if config['noise_type'] != 'none':
+        save_dir += '_nv-{}'.format(config['noise_variance'])
 
     save_dir = os.path.join(config['dir'], os.path.join(save_dir, 'training_'+str(training_num)))
     if not os.path.isdir(save_dir):

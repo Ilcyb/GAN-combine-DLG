@@ -1,3 +1,4 @@
+from os.path import expandvars
 from pprint import pprint
 import os
 import math
@@ -5,6 +6,7 @@ import time
 import argparse
 import sys
 import pathlib
+from PIL.Image import NONE
 
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import MultipleLocator
@@ -22,6 +24,11 @@ torch.manual_seed(50)
 
 def get_real_datas(net, save_dir, config):
     dataset = config['dataset']
+    participants = config['participants']
+    batch_size = config['batch_size']
+    noise_type = config['noise_type']
+    noise_variance = config['noise_variance']
+
     dst = None
     if dataset == 'cifar10':
         dst = datasets.CIFAR10(base_config['dataset']['cifar10_path'], download=True)
@@ -34,8 +41,6 @@ def get_real_datas(net, save_dir, config):
     elif dataset == 'lfw':
         dst = datasets.ImageFolder(base_config['dataset']['lfw_path'])
 
-    participants = config['participants']
-    batch_size = config['batch_size']
     if config['truth_imgs'] is None:
         img_idxs = [np.random.choice(range(10000), batch_size) for _ in range(participants)]
     else:
@@ -72,6 +77,19 @@ def get_real_datas(net, save_dir, config):
 
         # share the gradients with other clients
         original_dy_dx = list((_.detach().clone() for _ in dy_dx))
+        
+        # add noise
+        noise_distributions = {
+            'gaussian': torch.distributions.normal.Normal(torch.tensor([0.0]), torch.tensor([noise_variance])),
+            'laplace': torch.distributions.laplace.Laplace(torch.tensor([0.0]), torch.tensor([noise_variance])),
+            'none': None,
+        }
+        noise_distribution = noise_distributions[noise_type]
+        for j in range(len(original_dy_dx)):
+            if noise_distribution is None:
+                continue
+            noise = noise_distribution.sample(original_dy_dx[j].size()).squeeze()
+            original_dy_dx[j] = original_dy_dx[j] + noise
         for j in range(len(original_dy_dx)):
             if len(total_dy_dx) <= j:
                 total_dy_dx.append(original_dy_dx[j])
@@ -514,6 +532,8 @@ Norm Rate: {}
 Iters: {}
 Step Size: {}
 Smooth Direction: {}
+Noise Type: {}
+Noise Variance: {}
     '''.format(
         mode,
         experiments['batch_size'][idx['b_idx']],
@@ -526,7 +546,9 @@ Smooth Direction: {}
         experiments['norm_rate'][idx['nr_idx']],
         config['iters'],
         config['step_size'],
-        experiments['smooth_direction'][idx['sd_idx']]
+        experiments['smooth_direction'][idx['sd_idx']],
+        experiments['noise_type'][idx['nt_idx']],
+        experiments['noise_variance'][idx['nv_idx']]
     ))
 
     start_time = time.time()
@@ -538,6 +560,8 @@ Smooth Direction: {}
     config['norm_rate'] = experiments['norm_rate'][idx['nr_idx']]
     config['norm_method'] = experiments['norm_methods'][idx['nm_idx']]
     config['smooth_direction'] = experiments['smooth_direction'][idx['sd_idx']]
+    config['noise_type'] = experiments['noise_type'][idx['nt_idx']]
+    config['noise_variance'] = experiments['noise_variance'][idx['nv_idx']]
 
     generate_models = []
     generate_model = None
@@ -673,6 +697,9 @@ if __name__ == '__main__':
     smooth_direction = experiment_config.get('smooth_direction')
     procedure_save = experiment_config.get('procedure_save', False)
     truth_imgs = experiment_config.get('truth_imgs', None)
+    noise_type = experiment_config.get('noise_type', ['none'])
+    noise_variance = experiment_config.get('noise_variance', [0])
+
     if truth_imgs != None:
         assert len(truth_imgs) >= max(batch_size)
     mode = args.mode
@@ -709,7 +736,9 @@ if __name__ == '__main__':
         'regular_ratio': 0,
         'early_stop_step': early_stop_step,
         'procedure_save': procedure_save,
-        'truth_imgs': truth_imgs
+        'truth_imgs': truth_imgs,
+        'noise_type': noise_type,
+        'noise_variance': noise_variance
     }
 
     criterion = cross_entropy_for_onehot
@@ -735,7 +764,11 @@ if __name__ == '__main__':
         'iters': iters,
         'step_size': step_size,
         'smooth_direction': smooth_direction,
-        'current_sd': 0
+        'current_sd': 0,
+        'noise_type': noise_type,
+        'current_nt': 0,
+        'noise_variance': noise_variance,
+        'current_nv': 0
     }
 
     done = False
@@ -767,6 +800,8 @@ if __name__ == '__main__':
         current_nr = experiments['current_nr']
         current_nm = experiments['current_nm']
         current_sd = experiments['current_sd']
+        current_nt = experiments['current_nt']
+        current_nv = experiments['current_nv']
 
         for b_idx in range(current_bs, len(experiments['batch_size'])):
             for t_idx in range(current_tn, len(experiments['training_num'])):
@@ -776,10 +811,14 @@ if __name__ == '__main__':
                             for nr_idx in range(current_nr, len(experiments['norm_rate'])):
                                 for nm_idx in range(current_nm, len(experiments['norm_methods'])):
                                     for sd_idx in range(current_sd, len(experiments['smooth_direction'])):
-                                        idx = dict(b_idx=b_idx, t_idx=t_idx,
-                                        l_idx=l_idx, init_idx=init_idx, ds_idx=ds_idx, nr_idx=nr_idx,
-                                        nm_idx=nm_idx, sd_idx=sd_idx)
-                                        experiment(mode, device, experiments, config, base_generate_model_path, **idx)
+                                        for nt_idx in range(current_nt, len(experiments['noise_type'])):
+                                            for nv_idx in range(current_nv, len(experiments['noise_variance'])):
+                                                idx = dict(b_idx=b_idx, t_idx=t_idx,
+                                                l_idx=l_idx, init_idx=init_idx, ds_idx=ds_idx, nr_idx=nr_idx,
+                                                nm_idx=nm_idx, sd_idx=sd_idx, nt_idx=nt_idx, nv_idx=nv_idx)
+                                                experiment(mode, device, experiments, config, base_generate_model_path, **idx)
+                                                experiment_config_loop(mode, ckpt_location, context, experiments, 'current_nv', 'noise_variance')
+                                            experiment_config_loop(mode, ckpt_location, context, experiments, 'current_nt', 'noise_type')
                                         experiment_config_loop(mode, ckpt_location, context, experiments, 'current_sd', 'smooth_direction')
                                     experiment_config_loop(mode, ckpt_location, context, experiments, 'current_nm', 'norm_methods')
                                 experiment_config_loop(mode, ckpt_location, context, experiments, 'current_nr', 'norm_rate')
