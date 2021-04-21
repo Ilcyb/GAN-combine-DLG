@@ -80,8 +80,8 @@ def get_real_datas(net, save_dir, config):
         
         # add noise
         noise_distributions = {
-            'gaussian': torch.distributions.normal.Normal(torch.tensor([0.0]), torch.tensor([noise_variance])),
-            'laplace': torch.distributions.laplace.Laplace(torch.tensor([0.0]), torch.tensor([noise_variance])),
+            'gaussian': torch.distributions.normal.Normal(torch.tensor([0.0]), torch.tensor([noise_variance])) if noise_type != 'none' else None,
+            'laplace': torch.distributions.laplace.Laplace(torch.tensor([0.0]), torch.tensor([noise_variance])) if noise_type != 'none' else None,
             'none': None,
         }
         noise_distribution = noise_distributions[noise_type]
