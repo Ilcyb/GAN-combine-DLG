@@ -14,6 +14,8 @@ experiment_name_re_1 = re.compile(r'.+ds-(?P<dataset>.+)_bs-(?P<batch_size>.+)_i
 experiment_name_re_2 = re.compile(r'.+ds-(?P<dataset>.+)_bs-(?P<batch_size>.+)_init-(?P<init_method>.+)_iter-(?P<iters>.+)_op-(?P<optim>.+)_nm-(?P<norm>.+)_nr=(?P<norm_rate>[0-9e-]+)$')
 experiment_name_re_3 = re.compile(r'.+ds-(?P<dataset>.+)_bs-(?P<batch_size>.+)_init-(?P<init_method>.+)_iter-(?P<iters>.+)_op-(?P<optim>.+)_nm-(?P<norm>.+)_sd-(?P<smooth_direction>.+)_nr-(?P<norm_rate>[0-9e-]+)$')
 experiment_name_re_4 = re.compile(r'.+ds-(?P<dataset>.+)_bs-(?P<batch_size>.+)_init-(?P<init_method>.+)_iter-(?P<iters>.+)_op-(?P<optim>.+)_nm-(?P<norm>[a-z]+)_sd-(?P<smooth_direction>[0-9])$')
+experiment_name_re_6 = re.compile(r'.+ds-(?P<dataset>.+)_bs-(?P<batch_size>.+)_init-(?P<init_method>.+)_iter-(?P<iters>.+)_op-(?P<optim>.+)_nm-(?P<norm>.+)_sd-(?P<smooth_direction>.+)_nr-(?P<norm_rate>[0-9e-]+)_nt-(?P<noise_type>.+)_nv-(?P<noise_variance>[\.0-9e-]+)$')
+experiment_name_re_7 = re.compile(r'.+ds-(?P<dataset>.+)_bs-(?P<batch_size>.+)_init-(?P<init_method>.+)_iter-(?P<iters>.+)_op-(?P<optim>.+)_nm-(?P<norm>.+)_sd-(?P<smooth_direction>.+)_nr-(?P<norm_rate>[0-9e-]+)_nt-(?P<noise_type>[a-z]+)$')
 
 # inverting-gradients regex
 experiment_name_re_5 = re.compile(r'.+name_.+_ds-(?P<dataset>.+)_bs-(?P<batch_size>[0-9]+)$')
@@ -171,6 +173,8 @@ def MegerCommonExperimentsAnalysis(sub_results:list, **kwargs):
         attributions = sub_result['attributions']
         attributions['norm_rate'] = attributions.get('norm_rate', 'None')
         attributions['smooth_direction'] = attributions.get('smooth_direction', 'None')
+        attributions['noise_type'] = attributions.get('noise_type', 'None')
+        attributions['noise_variance'] = attributions.get('noise_variance', 'None')
         exp_combine_key = kwargs['exp_combine_key'].format(**attributions)
         if results.get(exp_combine_key) is None:
             results[exp_combine_key] = {}
@@ -226,6 +230,8 @@ def MergeCompareImageAnalysis(sub_results:list, **kwargs):
         attributions = sub_result['attributions']
         attributions['norm_rate'] = attributions.get('norm_rate', 'None')
         attributions['smooth_direction'] = attributions.get('smooth_direction', 'None')
+        attributions['noise_type'] = attributions.get('noise_type', 'None')
+        attributions['noise_variance'] = attributions.get('noise_variance', 'None')
         exp_combine_key = kwargs['exp_combine_key'].format(**attributions)
         if results.get(exp_combine_key) is None:
             results[exp_combine_key] = {}
@@ -275,6 +281,8 @@ def MergePSNRListAnalysis(sub_results:list, **kwargs):
         attributions = sub_result['attributions']
         attributions['norm_rate'] = attributions.get('norm_rate', 'None')
         attributions['smooth_direction'] = attributions.get('smooth_direction', 'None')
+        attributions['noise_type'] = attributions.get('noise_type', 'None')
+        attributions['noise_variance'] = attributions.get('noise_variance', 'None')
         exp_combine_key = kwargs['exp_combine_key'].format(**attributions)
         if results.get(exp_combine_key) is None:
             results[exp_combine_key] = {}
@@ -301,7 +309,8 @@ def main(config_path):
         if analysis_config['enable'] == False:
             continue
         if analysis_config['experiment_type'] == 'GAN-combine-DLG':
-            regexs = [experiment_name_re_1, experiment_name_re_2, experiment_name_re_3, experiment_name_re_4]
+            regexs = [experiment_name_re_1, experiment_name_re_2, 
+            experiment_name_re_3, experiment_name_re_4, experiment_name_re_6, experiment_name_re_7]
         elif analysis_config['experiment_type'] == 'inverting-gradients':
             regexs = [experiment_name_re_5]
 
