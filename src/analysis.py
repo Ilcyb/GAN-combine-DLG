@@ -11,11 +11,11 @@ import torchvision.transforms.functional as TF
 
 # GAN-combine-DLG regex
 experiment_name_re_1 = re.compile(r'.+ds-(?P<dataset>.+)_bs-(?P<batch_size>.+)_init-(?P<init_method>.+)_iter-(?P<iters>.+)_op-(?P<optim>.+)_nm-(?P<norm>[a-z]+)$')
-experiment_name_re_2 = re.compile(r'.+ds-(?P<dataset>.+)_bs-(?P<batch_size>.+)_init-(?P<init_method>.+)_iter-(?P<iters>.+)_op-(?P<optim>.+)_nm-(?P<norm>.+)_nr=(?P<norm_rate>[0-9e-]+)$')
-experiment_name_re_3 = re.compile(r'.+ds-(?P<dataset>.+)_bs-(?P<batch_size>.+)_init-(?P<init_method>.+)_iter-(?P<iters>.+)_op-(?P<optim>.+)_nm-(?P<norm>.+)_sd-(?P<smooth_direction>.+)_nr-(?P<norm_rate>[0-9e-]+)$')
+experiment_name_re_2 = re.compile(r'.+ds-(?P<dataset>.+)_bs-(?P<batch_size>.+)_init-(?P<init_method>.+)_iter-(?P<iters>.+)_op-(?P<optim>.+)_nm-(?P<norm>.+)_nr=(?P<norm_rate>[\.0-9e-]+)$')
+experiment_name_re_3 = re.compile(r'.+ds-(?P<dataset>.+)_bs-(?P<batch_size>.+)_init-(?P<init_method>.+)_iter-(?P<iters>.+)_op-(?P<optim>.+)_nm-(?P<norm>.+)_sd-(?P<smooth_direction>.+)_nr-(?P<norm_rate>[\.0-9e-]+)$')
 experiment_name_re_4 = re.compile(r'.+ds-(?P<dataset>.+)_bs-(?P<batch_size>.+)_init-(?P<init_method>.+)_iter-(?P<iters>.+)_op-(?P<optim>.+)_nm-(?P<norm>[a-z]+)_sd-(?P<smooth_direction>[0-9])$')
-experiment_name_re_6 = re.compile(r'.+ds-(?P<dataset>.+)_bs-(?P<batch_size>.+)_init-(?P<init_method>.+)_iter-(?P<iters>.+)_op-(?P<optim>.+)_nm-(?P<norm>.+)_sd-(?P<smooth_direction>.+)_nr-(?P<norm_rate>[0-9e-]+)_nt-(?P<noise_type>.+)_nv-(?P<noise_variance>[\.0-9e-]+)$')
-experiment_name_re_7 = re.compile(r'.+ds-(?P<dataset>.+)_bs-(?P<batch_size>.+)_init-(?P<init_method>.+)_iter-(?P<iters>.+)_op-(?P<optim>.+)_nm-(?P<norm>.+)_sd-(?P<smooth_direction>.+)_nr-(?P<norm_rate>[0-9e-]+)_nt-(?P<noise_type>[a-z]+)$')
+experiment_name_re_6 = re.compile(r'.+ds-(?P<dataset>.+)_bs-(?P<batch_size>.+)_init-(?P<init_method>.+)_iter-(?P<iters>.+)_op-(?P<optim>.+)_nm-(?P<norm>.+)_sd-(?P<smooth_direction>.+)_nr-(?P<norm_rate>[\.0-9e-]+)_nt-(?P<noise_type>.+)_nv-(?P<noise_variance>[\.0-9e-]+)$')
+experiment_name_re_7 = re.compile(r'.+ds-(?P<dataset>.+)_bs-(?P<batch_size>.+)_init-(?P<init_method>.+)_iter-(?P<iters>.+)_op-(?P<optim>.+)_nm-(?P<norm>.+)_sd-(?P<smooth_direction>.+)_nr-(?P<norm_rate>[\.0-9e-]+)_nt-(?P<noise_type>[a-z]+)$')
 
 # inverting-gradients regex
 experiment_name_re_5 = re.compile(r'.+name_.+_ds-(?P<dataset>.+)_bs-(?P<batch_size>[0-9]+)$')
@@ -75,7 +75,7 @@ def AnalysisMeanPSNR(folder_path):
     psnr = []
     with open(log_path, 'r') as f:
         for line in f.readlines():
-            psnr.append(float(psnr_re.match(line)[1]))
+            psnr.append(float(line[line.find(':')+1:]))
     max_psnr = 0
     for p in psnr:
         if p > max_psnr:
