@@ -22,6 +22,7 @@ from models import *  # noqa: E402
 plt.rcParams.update({'figure.max_open_warning': 0})
 torch.manual_seed(50)
 
+
 def get_real_datas(net, save_dir, config):
     dataset = config['dataset']
     participants = config['participants']
@@ -73,15 +74,18 @@ def get_real_datas(net, save_dir, config):
         # 相当于默认iDLG算法绝对正确
         # 但其实不能这么做
         # truth_label = get_truth_label(dy_dx[-1])
-        # gt_onehot_label[i] = label_to_onehot(torch.Tensor([truth_label]).long().to(device), num_classes=config['num_classes'])
+        # gt_onehot_label[i] = label_to_onehot(torch.Tensor([truth_label]).long().to(device),
+        # num_classes=config['num_classes'])
 
         # share the gradients with other clients
         original_dy_dx = list((_.detach().clone() for _ in dy_dx))
-        
+
         # add noise
         noise_distributions = {
-            'gaussian': torch.distributions.normal.Normal(torch.tensor([0.0]), torch.tensor([noise_variance])) if noise_type != 'none' else None,
-            'laplace': torch.distributions.laplace.Laplace(torch.tensor([0.0]), torch.tensor([noise_variance])) if noise_type != 'none' else None,
+            'gaussian': torch.distributions.normal.Normal(torch.tensor([0.0]), torch.tensor(
+                [noise_variance])) if noise_type != 'none' else None,
+            'laplace': torch.distributions.laplace.Laplace(torch.tensor([0.0]), torch.tensor(
+                [noise_variance])) if noise_type != 'none' else None,
             'none': None,
         }
         noise_distribution = noise_distributions[noise_type]
@@ -188,8 +192,8 @@ def pure_gan_dummy(data_shape, participant, batch_size, config, generate_model):
 
 
 # generate dummy data and label
-def generate_dummy_datas(save_dir, config, data_shape, label_onehot_shape, 
-                        generate_model, generate_models, gt_onehot_labels=None):
+def generate_dummy_datas(save_dir, config, data_shape, label_onehot_shape,
+                         generate_model, generate_models, gt_onehot_labels=None):
     dummy_datas = []
     dummy_labels = []
     participants = config['participants']
@@ -259,7 +263,7 @@ def recover(save_dir, config, net, gt_data, dummy_datas, dummy_labels, mean_dy_d
             __.append([])
         history.append(_)
         recover_procedure.append(__)
-    
+
     optimizer = None
     if optim == 'adam':
         optimizer = torch.optim.Adam(dummies, lr=lr)
@@ -336,9 +340,12 @@ def recover(save_dir, config, net, gt_data, dummy_datas, dummy_labels, mean_dy_d
                 for i in range(participants):
                     for j in range(batch_size):
                         history[i][j].append(dummy_datas[i][j].cpu().clone())
-                print("iter_num:{}\tloss:{:.5f}\tmean_psnr:{:.5f}\tcost time:{:.2f} secs".format(iter_num, current_loss.item(), mean_psnr, time.time() - start_time))
+                print("iter_num:{}\tloss:{:.5f}\tmean_psnr:{:.5f}\tcost time:{:.2f} secs".format(iter_num,
+                                                                                                 current_loss.item(),
+                                                                                                 mean_psnr,
+                                                                                                 time.time() - start_time))
                 start_time = time.time()
-            
+
             if early_stop(psnrs, config, iter_num):
                 break
 
@@ -347,7 +354,7 @@ def recover(save_dir, config, net, gt_data, dummy_datas, dummy_labels, mean_dy_d
                 history[i][j].append(dummy_datas[i][j].cpu().clone())
                 if procedure_save is True:
                     recover_procedure.append(dummy_datas[i][j].cpu().clone())
-    
+
     elif optim == 'adam':
         for iter_num in range(iters):
             # compute mean dummy dy/dx
@@ -401,9 +408,11 @@ def recover(save_dir, config, net, gt_data, dummy_datas, dummy_labels, mean_dy_d
                 for i in range(participants):
                     for j in range(batch_size):
                         history[i][j].append(dummy_datas[i][j].cpu().clone())
-                print("iter_num:{}\tloss:{:.5f}\tmean_psnr:{:.5f}\tcost time:{:.2f} secs".format(iter_num, current_loss, mean_psnr, time.time() - start_time))
+                print("iter_num:{}\tloss:{:.5f}\tmean_psnr:{:.5f}\tcost time:{:.2f} secs".format(iter_num, current_loss,
+                                                                                                 mean_psnr,
+                                                                                                 time.time() - start_time))
                 start_time = time.time()
-            
+
             if early_stop(psnrs, config, iter_num):
                 break
 
@@ -442,7 +451,7 @@ def create_plt(save_dir, config, gt_data, dummy_datas, dummy_labels, history, re
             plt.figure(figsize=(20, 6))
             print("Participant {} Dummy label {} is {}.".format(p + 1, j + 1,
                                                                 torch.argmax(dummy_labels[p][j], dim=-1).item()))
-            for i in range(min(len(history[p][j])-1, (int)(iters / step_size))):
+            for i in range(min(len(history[p][j]) - 1, (int)(iters / step_size))):
                 # plt.subplot(row, 10, i + 1)
                 # plt.title("iter=%d" % ((i)*step_size))
                 # plt.imshow(history[p][j][i])
@@ -458,7 +467,8 @@ def create_plt(save_dir, config, gt_data, dummy_datas, dummy_labels, history, re
 
             if procedure_save is True:
                 for count in range(len(recover_procedure[p][j])):
-                    save_tensor_img(procedure_folder, 'procedure{}-{}-{}'.format(p + 1, j + 1, count + 1), recover_procedure[p][j][count])
+                    save_tensor_img(procedure_folder, 'procedure{}-{}-{}'.format(p + 1, j + 1, count + 1),
+                                    recover_procedure[p][j][count])
 
         save_tensor_img(save_dir, 'result_img_grid', dummy_datas[p], True)
         save_tensor_img(save_dir, 'compare',
@@ -504,13 +514,14 @@ def create_plt(save_dir, config, gt_data, dummy_datas, dummy_labels, history, re
     psnr_str_list = ['iter-{}:{:.5f}'.format(i + 1, psnrs[i]) for i in range(len(psnrs))]
     with open(psnr_log_path, 'w') as f:
         f.write('\n'.join(psnr_str_list))
-    
+
 
 def experiment_config_loop(mode, ckpt_location, context, experiments, current_config_idx, config_name):
     experiments[current_config_idx] = (experiments[current_config_idx] + 1) % len(
         experiments[config_name])
     context['experiments'] = experiments
     save_checkpoint(mode, ckpt_location, context)
+
 
 def experiment(mode, device, experiments, config, base_generate_model_path, **idx):
     # 早停参数复原
@@ -567,21 +578,21 @@ Noise Variance: {}
     generate_model = None
     if config['init_method'] == 'gan' and config['dataset'] == 'mnist':
         generate_model_path = os.path.join(base_generate_model_path,
-                                            'MNIST-GenerateModel')
+                                           'MNIST-GenerateModel')
         for j in range(10):
             m = DCGANGenerator_mnist()
             m.load_state_dict(torch.load(os.path.join(generate_model_path,
-                                                        'generate_model_{}'.format(
-                                                            j))))
+                                                      'generate_model_{}'.format(
+                                                          j))))
             m.eval()
             generate_models.append(m)
     elif config['init_method'] == 'gan' and config['dataset'] == 'cifar10':
         generate_model_path = os.path.join(base_generate_model_path,
-                                            'CIFAR10-GenerateModel')
+                                           'CIFAR10-GenerateModel')
         pass
     elif config['init_method'] == 'pure-gan' and config['dataset'] == 'mnist':
         generate_model_path = os.path.join(base_generate_model_path,
-                                            'MNIST-PureGenerateModel')
+                                           'MNIST-PureGenerateModel')
         from torch.autograd import Variable
 
         cuda = True if torch.cuda.is_available() else False
@@ -594,16 +605,16 @@ Noise Variance: {}
         generate_model.eval()
     elif config['init_method'] == 'pure-gan' and config['dataset'] == 'cifar10':
         generate_model_path = os.path.join(base_generate_model_path,
-                                            'CIFAR10-PureGenerateModel')
+                                           'CIFAR10-PureGenerateModel')
         generate_model = PureCifar10Generator()
         generate_model.load_state_dict(
             torch.load(os.path.join(generate_model_path, 'netG_epoch_24.pth'),
-                        map_location=torch.device(device)))
+                       map_location=torch.device(device)))
         generate_model.to(device)
         generate_model.eval()
     elif config['init_method'] == 'pure-gan' and config['dataset'] == 'svhn':
         generate_model_path = os.path.join(base_generate_model_path,
-                                            'SVHN-PureGenerateModel')
+                                           'SVHN-PureGenerateModel')
         generate_model = SVHNPureGenerator()
         generate_model.load_state_dict(torch.load(
             os.path.join(generate_model_path, 'SVHN_Generator_epoch50.mdl'),
@@ -612,7 +623,7 @@ Noise Variance: {}
         generate_model.eval()
     elif config['init_method'] == 'pure-gan' and config['dataset'] == 'cifar100':
         generate_model_path = os.path.join(base_generate_model_path,
-                                            'CIFAR100-PureGenerateModel')
+                                           'CIFAR100-PureGenerateModel')
         generate_model = CIFAR100PureGenerator()
         generate_model.load_state_dict(torch.load(
             os.path.join(generate_model_path, 'netG_epoch_24.pth'),
@@ -621,7 +632,7 @@ Noise Variance: {}
         generate_model.eval()
     elif config['init_method'] == 'pure-gan' and config['dataset'] == 'lfw':
         generate_model_path = os.path.join(base_generate_model_path,
-                                            'LFW-PureGenerateModel')
+                                           'LFW-PureGenerateModel')
         generate_model = LFWPureGenerator()
         generate_model.load_state_dict(torch.load(
             os.path.join(generate_model_path, 'modelG'),
@@ -649,23 +660,24 @@ Noise Variance: {}
 
     save_dir = get_save_path(experiments['training_num'][idx['t_idx']], config)
     gt_data, recoverd_onehot_label, mean_dy_dx, data_shape, label_onehot_shape = get_real_datas(
-                                                                            net, save_dir, config)
+        net, save_dir, config)
     dummy_datas, dummy_labels = generate_dummy_datas(save_dir, config,
-                                                        data_shape,
-                                                        label_onehot_shape,
-                                                        generate_model,
-                                                        generate_models,
-                                                        recoverd_onehot_label)
+                                                     data_shape,
+                                                     label_onehot_shape,
+                                                     generate_model,
+                                                     generate_models,
+                                                     recoverd_onehot_label)
     dummy_datas, dummy_labels, history, recover_procedure, loss, psnrs = recover(save_dir, config,
-                                                                net, gt_data, dummy_datas,
-                                                                recoverd_onehot_label,
-                                                                mean_dy_dx)
+                                                                                 net, gt_data, dummy_datas,
+                                                                                 recoverd_onehot_label,
+                                                                                 mean_dy_dx)
     create_plt(save_dir, config, gt_data, dummy_datas, dummy_labels, history, recover_procedure,
-                loss, psnrs)
+               loss, psnrs)
     plt.close('all')
     cost_time = time.time() - start_time
     print('\ntime cost: {} secs'.format(cost_time))
     print('========================================================')
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='GAN combine DLG')
@@ -674,7 +686,8 @@ if __name__ == '__main__':
     parser.add_argument('--base-config', type=str, default='../base_config.json')
     args = parser.parse_args()
 
-    # base_config = read_experiment_config(os.path.join(pathlib.Path(__file__).parent.absolute().parent, 'base_config.json'))
+    # base_config = read_experiment_config(os.path.join(pathlib.Path(__file__).parent.absolute().parent,
+    # 'base_config.json'))
     base_config = read_experiment_config(args.base_config)
     folder_paths = [base_config['production_path'], base_config['debug_path'], base_config['generate_model_path']]
     check_folder_path(folder_paths)
@@ -693,7 +706,7 @@ if __name__ == '__main__':
     device = experiment_config.get('device', 'cpu')
     step_size = experiment_config.get('step_size', 1 if iters <= 100 else math.ceil(iters / 100))
     lr = experiment_config.get('learning_rate', [0.002])
-    early_stop_step = experiment_config.get('early_stop_step', int(iters/50))
+    early_stop_step = experiment_config.get('early_stop_step', int(iters / 50))
     smooth_direction = experiment_config.get('smooth_direction')
     procedure_save = experiment_config.get('procedure_save', False)
     truth_imgs = experiment_config.get('truth_imgs', None)
@@ -814,14 +827,20 @@ if __name__ == '__main__':
                                         for nt_idx in range(current_nt, len(experiments['noise_type'])):
                                             for nv_idx in range(current_nv, len(experiments['noise_variance'])):
                                                 idx = dict(b_idx=b_idx, t_idx=t_idx,
-                                                l_idx=l_idx, init_idx=init_idx, ds_idx=ds_idx, nr_idx=nr_idx,
-                                                nm_idx=nm_idx, sd_idx=sd_idx, nt_idx=nt_idx, nv_idx=nv_idx)
-                                                experiment(mode, device, experiments, config, base_generate_model_path, **idx)
-                                                experiment_config_loop(mode, ckpt_location, context, experiments, 'current_nv', 'noise_variance')
-                                            experiment_config_loop(mode, ckpt_location, context, experiments, 'current_nt', 'noise_type')
-                                        experiment_config_loop(mode, ckpt_location, context, experiments, 'current_sd', 'smooth_direction')
-                                    experiment_config_loop(mode, ckpt_location, context, experiments, 'current_nm', 'norm_methods')
-                                experiment_config_loop(mode, ckpt_location, context, experiments, 'current_nr', 'norm_rate')
+                                                           l_idx=l_idx, init_idx=init_idx, ds_idx=ds_idx, nr_idx=nr_idx,
+                                                           nm_idx=nm_idx, sd_idx=sd_idx, nt_idx=nt_idx, nv_idx=nv_idx)
+                                                experiment(mode, device, experiments, config, base_generate_model_path,
+                                                           **idx)
+                                                experiment_config_loop(mode, ckpt_location, context, experiments,
+                                                                       'current_nv', 'noise_variance')
+                                            experiment_config_loop(mode, ckpt_location, context, experiments,
+                                                                   'current_nt', 'noise_type')
+                                        experiment_config_loop(mode, ckpt_location, context, experiments, 'current_sd',
+                                                               'smooth_direction')
+                                    experiment_config_loop(mode, ckpt_location, context, experiments, 'current_nm',
+                                                           'norm_methods')
+                                experiment_config_loop(mode, ckpt_location, context, experiments, 'current_nr',
+                                                       'norm_rate')
                             experiment_config_loop(mode, ckpt_location, context, experiments, 'current_ds', 'dataset')
                         experiment_config_loop(mode, ckpt_location, context, experiments, 'current_init', 'init')
                     experiment_config_loop(mode, ckpt_location, context, experiments, 'current_lr', 'lr')
