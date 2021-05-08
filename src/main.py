@@ -27,8 +27,6 @@ def get_real_datas(net, save_dir, config):
     dataset = config['dataset']
     participants = config['participants']
     batch_size = config['batch_size']
-    noise_type = config['noise_type']
-    noise_variance = config['noise_variance']
 
     dst = None
     if dataset == 'cifar10':
@@ -79,21 +77,6 @@ def get_real_datas(net, save_dir, config):
 
         # share the gradients with other clients
         original_dy_dx = list((_.detach().clone() for _ in dy_dx))
-
-        # add noise
-        noise_distributions = {
-            'gaussian': torch.distributions.normal.Normal(torch.tensor([0.0]), torch.tensor(
-                [noise_variance])) if noise_type != 'none' else None,
-            'laplace': torch.distributions.laplace.Laplace(torch.tensor([0.0]), torch.tensor(
-                [noise_variance])) if noise_type != 'none' else None,
-            'none': None,
-        }
-        noise_distribution = noise_distributions[noise_type]
-        for j in range(len(original_dy_dx)):
-            if noise_distribution is None:
-                continue
-            noise = noise_distribution.sample(original_dy_dx[j].size()).squeeze()
-            original_dy_dx[j] = original_dy_dx[j] + noise
         for j in range(len(original_dy_dx)):
             if len(total_dy_dx) <= j:
                 total_dy_dx.append(original_dy_dx[j])
@@ -667,6 +650,20 @@ Noise Variance: {}
                                                      generate_model,
                                                      generate_models,
                                                      recoverd_onehot_label)
+    # add noise
+    noise_distributions = {
+        'gaussian': torch.distributions.normal.Normal(torch.tensor([0.0]), torch.tensor(
+            [config['noise_variance']])) if config['noise_type'] != 'none' else None,
+        'laplace': torch.distributions.laplace.Laplace(torch.tensor([0.0]), torch.tensor(
+            [config['noise_variance']])) if config['noise_type'] != 'none' else None,
+        'none': None,
+    }
+    noise_distribution = noise_distributions[config['noise_type']]
+    if noise_distribution is not None:
+        with torch.no_grad():
+            for p in net.parameters():
+                p.data = p.data + noise_distribution.sample(p.data.size()).squeeze(-1).to(device)
+
     dummy_datas, dummy_labels, history, recover_procedure, loss, psnrs = recover(save_dir, config,
                                                                                  net, gt_data, dummy_datas,
                                                                                  recoverd_onehot_label,

@@ -16,6 +16,8 @@ experiment_name_re_3 = re.compile(r'.+ds-(?P<dataset>.+)_bs-(?P<batch_size>.+)_i
 experiment_name_re_4 = re.compile(r'.+ds-(?P<dataset>.+)_bs-(?P<batch_size>.+)_init-(?P<init_method>.+)_iter-(?P<iters>.+)_op-(?P<optim>.+)_nm-(?P<norm>[a-z]+)_sd-(?P<smooth_direction>[0-9])$')
 experiment_name_re_6 = re.compile(r'.+ds-(?P<dataset>.+)_bs-(?P<batch_size>.+)_init-(?P<init_method>.+)_iter-(?P<iters>.+)_op-(?P<optim>.+)_nm-(?P<norm>.+)_sd-(?P<smooth_direction>.+)_nr-(?P<norm_rate>[\.0-9e-]+)_nt-(?P<noise_type>.+)_nv-(?P<noise_variance>[\.0-9e-]+)$')
 experiment_name_re_7 = re.compile(r'.+ds-(?P<dataset>.+)_bs-(?P<batch_size>.+)_init-(?P<init_method>.+)_iter-(?P<iters>.+)_op-(?P<optim>.+)_nm-(?P<norm>.+)_sd-(?P<smooth_direction>.+)_nr-(?P<norm_rate>[\.0-9e-]+)_nt-(?P<noise_type>[a-z]+)$')
+experiment_name_re_8 = re.compile(r'.+ds-(?P<dataset>.+)_bs-(?P<batch_size>.+)_init-(?P<init_method>.+)_iter-(?P<iters>.+)_op-(?P<optim>.+)_nm-(?P<norm>.+)_sd-(?P<smooth_direction>.+)_nt-(?P<noise_type>.+)_nv-(?P<noise_variance>[\.0-9e-]+)$')
+experiment_name_re_9 = re.compile(r'.+ds-(?P<dataset>.+)_bs-(?P<batch_size>.+)_init-(?P<init_method>.+)_iter-(?P<iters>.+)_op-(?P<optim>.+)_nm-(?P<norm>.+)_sd-(?P<smooth_direction>.+)_nt-(?P<noise_type>[a-z]+)$')
 
 # inverting-gradients regex
 experiment_name_re_5 = re.compile(r'.+name_.+_ds-(?P<dataset>.+)_bs-(?P<batch_size>[0-9]+)$')
@@ -310,7 +312,8 @@ def main(config_path):
             continue
         if analysis_config['experiment_type'] == 'GAN-combine-DLG':
             regexs = [experiment_name_re_1, experiment_name_re_2, 
-            experiment_name_re_3, experiment_name_re_4, experiment_name_re_6, experiment_name_re_7]
+            experiment_name_re_3, experiment_name_re_4, experiment_name_re_6, experiment_name_re_7,
+            experiment_name_re_8, experiment_name_re_9]
         elif analysis_config['experiment_type'] == 'inverting-gradients':
             regexs = [experiment_name_re_5]
 
