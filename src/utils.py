@@ -1,3 +1,4 @@
+from torch._C import Size
 from torch.functional import Tensor
 from torchvision import transforms
 import torch
@@ -171,6 +172,24 @@ def compute_mean(img_tensor):
         total_value = torch.sum(torch.abs(img_tensor[channel]-mean))
     
     return total_value/(size[0]*size[1]*size[2])
+
+def compute_blur(img_tensor, kernel):
+    img_size = img_tensor.size()
+    kernel_size = int((kernel.size()[0] - 1) / 2)
+    total_value = 0
+    for channel in range(img_size[0]):
+        for row in range(kernel_size, img_size[1]-kernel_size):
+            for column in range(kernel_size, img_size[2]-kernel_size):
+                split_matrix = img_tensor[channel][row-kernel_size:row+kernel_size+1,column-kernel_size:column+kernel_size+1]
+                blur_value = abs(split_matrix*kernel-
+                kernel*img_tensor[channel][row][column]).sum().item()
+                total_value += blur_value
+
+    return total_value/(img_size[0]*img_size[1]*img_size[2])
+
+# def matrix_padding(original_tensor, position, kernel_size):
+#     kernel_size = (kernel_size - 1) / 2
+
 
 def weights_init(m):
     if hasattr(m, "weight"):

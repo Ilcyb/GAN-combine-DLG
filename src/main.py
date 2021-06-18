@@ -292,8 +292,12 @@ def recover(save_dir, config, net, gt_data, dummy_datas, dummy_labels, mean_dy_d
                     # 图片smooth程度正则项
                     for i in range(participants):
                         for j in range(batch_size):
-                            smooth += compute_smooth_by_martix(dummy_datas[i][j], smooth_direction)
-                            # smooth += compute_mean(dummy_datas[i][j])
+                            kernel = [[0,1,0],[1,0,1],[0,1,0]]
+                            norm_blur = compute_blur(dummy_datas[i][j], torch.Tensor(kernel))
+                            norm_legacy = compute_smooth_by_martix(dummy_datas[i][j], smooth_direction) 
+                            smooth += norm_blur
+                            print(f"目前的正则项计算方法:{norm_legacy}\t测试的正则项计算方法:{norm_blur}")
+                            # smooth += compute_smooth_by_martix(dummy_datas[i][j], smooth_direction)
                             # print(smooth)
                     grad_diff += norm_rate * smooth
 
@@ -368,8 +372,12 @@ def recover(save_dir, config, net, gt_data, dummy_datas, dummy_labels, mean_dy_d
                 # 图片smooth程度正则项
                 for i in range(participants):
                     for j in range(batch_size):
-                        smooth += compute_smooth_by_martix(dummy_datas[i][j], smooth_direction)
-                        # smooth += compute_mean(dummy_datas[i][j])
+                        kernel = [[0,1,0],[1,0,1],[0,1,0]]
+                        norm_blur = compute_blur(dummy_datas[i][j], torch.Tensor(kernel))
+                        norm_legacy = compute_smooth_by_martix(dummy_datas[i][j], smooth_direction) 
+                        smooth += norm_blur
+                        print(f"目前的正则项计算方法:{norm_legacy}\t测试的正则项计算方法:{norm_blur}")
+                        # smooth += compute_smooth_by_martix(dummy_datas[i][j], smooth_direction)
                         # print(smooth)
                 grad_diff += norm_rate * smooth
 
